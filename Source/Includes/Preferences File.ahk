@@ -49,6 +49,7 @@ ReadPreferences(RestoreDefaults = false,RestorePreferences = false)
    global dft_ListBoxNotDPIAwareProgramExecutables
    global dft_HelperWindowProgramExecutables
    global dft_HelperWindowProgramTitles
+   global dft_Wordlist
    
    global prefs_IncludeProgramExecutables
    global prefs_IncludeProgramTitles
@@ -82,15 +83,28 @@ ReadPreferences(RestoreDefaults = false,RestorePreferences = false)
    global prefs_ListBoxNotDPIAwareProgramExecutables
    global prefs_HelperWindowProgramExecutables
    global prefs_HelperWindowProgramTitles
+   global prefs_Wordlist
    
    ;g_PrefsFile is global so it works in Settings.ahk
    global g_PrefsFile
    global g_PrefsSections
    global g_XY
    
-   g_PrefsFile = %A_ScriptDir%\Preferences.ini
-   Defaults = %A_ScriptDir%\Defaults.ini
-   LastState = %A_ScriptDir%\LastState.ini
+   global PathToUserFiles
+   global Wordlist
+   global WordlistFileName
+   global Default_Wordlist
+   
+   PathToUserFiles = %A_MyDocuments%\TypingAid
+   IfNotExist, %PathToUserFiles%
+      FileCreateDir, %PathToUserFiles%
+   
+   Default_Wordlist = %PathToUserFiles%\wordlist.txt
+   
+   
+   g_PrefsFile = %PathToUserFiles%\Preferences.ini
+   Defaults = %PathToUserFiles%\Defaults.ini
+   LastState = %PathToUserFiles%\LastState.ini
    
    MaybeFixFileEncoding(g_PrefsFile,"UTF-16")
    MaybeFixFileEncoding(Defaults,"UTF-16")
@@ -148,6 +162,7 @@ ReadPreferences(RestoreDefaults = false,RestorePreferences = false)
       dft_HelperWindowProgramExecutables,prefs_HelperWindowProgramExecutables,HelperWindow,%SpaceVar%
       dft_HelperWindowProgramTitles,prefs_HelperWindowProgramTitles,HelperWindow,%SpaceVar%
       ,XY,HelperWindow,%SpaceVar%
+      dft_Wordlist,prefs_Wordlist,Settings,%Default_Wordlist%
    )
    
    g_PrefsSections := Object()
@@ -191,6 +206,9 @@ ReadPreferences(RestoreDefaults = false,RestorePreferences = false)
       }
    }
    
+   wordlist = %prefs_wordlist%
+   SplitPath, wordlist, wordlistname
+   
    ValidatePreferences()
    ParseTerminatingCharacters()
    
@@ -218,6 +236,8 @@ ReadPreferences(RestoreDefaults = false,RestorePreferences = false)
    }
    
    ConstructHelpStrings()
+   
+
          
    Return
 }
@@ -233,6 +253,16 @@ ValidatePreferences()
    global dft_ListBoxCharacterWidth, dft_ListBoxFontFixed, dft_ListBoxFontSize, dft_ListBoxMaxWidth, dft_ListBoxOffset, dft_ListBoxOpacity, dft_ListBoxRows
    global prefs_NoBackSpace, prefs_NumPresses, prefs_SendMethod, prefs_ShowLearnedFirst, prefs_SuppressMatchingWord, prefs_TerminatingCharacters
    global dft_NoBackSpace, dft_NumPresses, dft_SendMethod, dft_ShowLearnedFirst, dft_SuppressMatchingWord, dft_TerminatingCharacters
+   global dft_Wordlist, prefs_Wordlist
+   
+   IfNotExist, %prefs_Wordlist%
+   {
+      IfNotEqual, prefs_Wordlist, %dft_Wordlist%
+      {
+         MsgBox, The file selected for words %prefs_wordlist% can't be accessed, reverting to default
+         prefs_Wordlist := dft_Wordlist
+      }
+   }
    
    if prefs_Length is not integer
    {
@@ -308,7 +338,7 @@ ValidatePreferences()
    if prefs_SuppressMatchingWord not in On,Off
       prefs_SuppressMatchingWord := dft_SuppressMatchingWord
    
-   if prefs_SendMethod not in 1,2,3,1C,2C,3C,4C
+   if prefs_SendMethod not in 1,2,3,1C,2C,3C,4C,4
       prefs_SendMethod := dft_SendMethod
    
    ;SendPlay does not work when not running as Administrator, switch to SendInput
@@ -499,6 +529,7 @@ SavePreferences(PrefsToSave)
    
    Return
 }
+
 
 ConstructHelpStrings()
 {

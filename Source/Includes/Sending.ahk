@@ -171,6 +171,19 @@ SendFull(SendValue,ForceBackspace=false)
       Return
    }
    
+   IfEqual, prefs_SendMethod, 4
+   {
+         if (BackSpaceWord)
+      {
+         sending = {BS %BackSpaceLen%}%SendValue%
+      } Else {
+         sending = %SendValue%
+      }
+      SendEvent, %sending% ; First do the backspaces, Then send word (Raw because we want the string exactly as in wordlist.txt) 
+      Return
+   }
+   
+   
    ClipboardSave := ClipboardAll
    Clipboard = 
    Clipboard := SendValue

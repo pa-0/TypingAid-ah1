@@ -45,6 +45,10 @@ ConstructGui()
    ; Must be global for colors to function, colors will not function if static
    global Menu_VisitForum
    
+   ; Adding path to wordlist
+   global prefs_Wordlist
+
+   
    Menu_CaseCorrection=
    Menu_ArrowKeyMethodOptionsText=
    
@@ -216,8 +220,8 @@ ConstructGui()
 
 
    Gui, MenuGui:Add, GroupBox, x%MenuGroup3of3BoxX% y%MenuRowY% w%MenuThreeColGroupWidth% h%MenuRowHeight% , Send Method
-   Menu_SendMethodOptionsText=1 - Default (Type)|2 - Fast (Type)|3 - Slow (Type)|4 - Default (Paste)|5 - Fast (Paste)|6 - Slow (Paste)|7 - Alternate method
-   Menu_SendMethodOptionsCode=1|2|3|1C|2C|3C|4C
+   Menu_SendMethodOptionsText=1 - Default (Type)|2 - Fast (Type)|3 - Slow (Type)|4 - Default (Paste)|5 - Fast (Paste)|6 - Slow (Paste)|7 - Alternate method|8 - Raw Off
+   Menu_SendMethodOptionsCode=1|2|3|1C|2C|3C|4C|4
    Loop, parse, Menu_SendMethodOptionsCode, |
    {
 	  If (prefs_SendMethod = A_LoopField)
@@ -270,6 +274,19 @@ ConstructGui()
    Gui, MenuGui:Add, DDL, x%MenuGroup3of3EditX% y%MenuRowEditY% w%MenuThreeColEditWidth% r5 vprefs_AutoSpace gEditValue, %Menu_AutoSpaceOptions%
    Gui, MenuGui:Font, cGreen
    Gui, MenuGui:Add, Text, x%MenuGroup3of3HelpX% y%MenuRowHelpY% vhelpinfo_AutoSpace gHelpMe, %MenuGuiHelpIcon%
+   Gui, MenuGui:Font, cBlack
+   
+   MenuRowY := MenuRowY + MenuRowHeight + MenuSeparatorY
+   MenuRowHelpY := MenuRowY - MenuHelpIndentY
+   MenuRowEditY := MenuRowY + MenuEditIndentY
+
+   ;WordlistFile
+
+   Gui, MenuGui:Add, GroupBox, x%MenuGroup1BoxX% y%MenuRowY% w%MenuOneColGroupWidth% h%MenuRowHeight% , Wordlist to load words from
+   Gui, MenuGui:Add, Edit, x%MenuGroup1EditX% y%MenuRowEditY% w%MenuOneColEditWidthEdit% r1 vprefs_Wordlist gEditValue, %prefs_Wordlist%
+   Gui, MenuGui:Add, Button, x%MenuOneColEditButton% yp w130 gSetWordlistFile, Edit
+   Gui, MenuGui:Font, cGreen
+   ;Gui, MenuGui:Add, Text, x%MenuGroup1of1HelpX% y%MenuRowHelpY% vhelpinfo_HelperWindowProgramExecutables gHelpMe, %MenuGuiHelpIcon%
    Gui, MenuGui:Font, cBlack
 
    Gui, MenuGui:Tab, 2 ; listbox ---------------------------------------------------------
@@ -677,6 +694,16 @@ Return
 
 SetHelpProcess:
 GetList("prefs_HelperWindowProgramExecutables",1)
+Return
+
+SetWordlistFile:
+FileSelectFile, SelectedFile, 3, , Open a file, Text Documents (*.txt)
+if SelectedFile =
+    Return
+else
+	GuiControl, Text, prefs_Wordlist, %SelectedFile%
+	Menu_ValueChanged := true
+	Menu_ChangedPrefs["prefs_Wordlist"] := prefs_Wordlist
 Return
 
 GetList(TitleType,GetExe)

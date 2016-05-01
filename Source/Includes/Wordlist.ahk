@@ -9,19 +9,20 @@ ReadWordList()
    ;mark the wordlist as not done
    g_WordListDone = 0
    
-   WordlistFileName = wordlist.txt
-   
-   Wordlist = %A_ScriptDir%\%WordlistFileName%
-   WordlistLearned = %A_ScriptDir%\WordlistLearned.txt
+   global PathToUserFiles
+   global Wordlist
+   global WordlistFileName
+
+   WordlistLearned = %PathToUserFiles%\WordlistLearned.txt
    
    MaybeFixFileEncoding(Wordlist,"UTF-8")
    MaybeFixFileEncoding(WordlistLearned,"UTF-8")
 
-   g_WordListDB := DBA.DataBaseFactory.OpenDataBase("SQLite", A_ScriptDir . "\WordlistLearned.db" )
+   g_WordListDB := DBA.DataBaseFactory.OpenDataBase("SQLite", PathToUserFiles . "\WordlistLearned.db" )
    
    if !g_WordListDB
    {
-      msgbox Problem opening database '%A_ScriptDir%\WordlistLearned.db' - fatal error...
+      msgbox Problem opening database '%PathToUserFiles%\WordlistLearned.db' - fatal error...
       exitapp
    }
 	
@@ -417,23 +418,23 @@ MaybeUpdateWordlist()
       {
          StringTrimRight, TempWordList, TempWordList, 2
    
-         FileDelete, %A_ScriptDir%\Temp_WordlistLearned.txt
-         FileAppendDispatch(TempWordList, A_ScriptDir . "\Temp_WordlistLearned.txt")
-         FileCopy, %A_ScriptDir%\Temp_WordlistLearned.txt, %A_ScriptDir%\WordlistLearned.txt, 1
-         FileDelete, %A_ScriptDir%\Temp_WordlistLearned.txt
+         FileDelete, %PathToUserFiles%\Temp_WordlistLearned.txt
+         FileAppendDispatch(TempWordList, PathToUserFiles . "\Temp_WordlistLearned.txt")
+         FileCopy, %PathToUserFiles%\Temp_WordlistLearned.txt, %PathToUserFiles%\WordlistLearned.txt, 1
+         FileDelete, %PathToUserFiles%\Temp_WordlistLearned.txt
          
          ; Convert the Old Wordlist file to not have ;LEARNEDWORDS;
          IfEqual, g_LegacyLearnedWords, 1
          {
             TempWordList =
-            FileRead, ParseWords, %A_ScriptDir%\Wordlist.txt
+            FileRead, ParseWords, %PathToUserFiles%\Wordlist.txt
             LearnedWordsPos := InStr(ParseWords, "`;LEARNEDWORDS`;",true,1) ;Check for Learned Words
             TempWordList := SubStr(ParseWords, 1, LearnedwordsPos - 1) ;Grab all non-learned words out of list
             ParseWords = 
-            FileDelete, %A_ScriptDir%\Temp_Wordlist.txt
-            FileAppendDispatch(TempWordList, A_ScriptDir . "\Temp_Wordlist.txt")
-            FileCopy, %A_ScriptDir%\Temp_Wordlist.txt, %A_ScriptDir%\Wordlist.txt, 1
-            FileDelete, %A_ScriptDir%\Temp_Wordlist.txt
+            FileDelete, %PathToUserFiles%\Temp_Wordlist.txt
+            FileAppendDispatch(TempWordList, PathToUserFiles . "\Temp_Wordlist.txt")
+            FileCopy, %PathToUserFiles%\Temp_Wordlist.txt, %PathToUserFiles%\Wordlist.txt, 1
+            FileDelete, %PathToUserFiles%\Temp_Wordlist.txt
          }   
       }
    }
