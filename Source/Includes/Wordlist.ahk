@@ -177,6 +177,7 @@ AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCoun
    global g_WordListDB
    
    if !(LearnedWordsCount) {
+      ;This section handles the creation of new wordlist database from text files.
       StringSplit, SplitAddWord, AddWord, |
       
       IfEqual, SplitAddWord2, D
@@ -205,6 +206,7 @@ AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCoun
 
    IfEqual, g_WordListDone, 0 ;if this is read from the wordlist
    {
+      ;If wordlist is not yet processed...
       IfNotEqual,LearnedWordsCount,  ;if this is a stored learned word, this will only have a value when LearnedWords are read in from the wordlist
       {
          ; must update wordreplacement since SQLLite3 considers nulls unique
@@ -237,13 +239,25 @@ AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCoun
          IfNotEqual, ForceCountNewOnly, 1
          {
             IF (StrLen(AddWord) < prefs_LearnLength) ; don't add the word if it's not longer than the minimum length for learning if we aren't force learning it
+            {
+               ;Word not learned: Length less than LearnLength
+               ClearWordHierarchy() 
                Return
+            }
             
             if AddWord contains %prefs_ForceNewWordCharacters%
+            {
+               ;Word not learned: word contains character from prefs_ForceNewWordCharacters
+               ClearWordHierarchy() 
                Return
+            }
                   
             if AddWord contains %prefs_DoNotLearnStrings%
+            {
+               ;Word not learned: word contains string from prefs_DoNotLearnStrings
+               ClearWordHierarchy() 
                Return
+            }
                   
             CountValue = 1
                   
@@ -265,12 +279,19 @@ AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCoun
                
             IF ( CountValue < prefs_LearnCount )
             {
-               g_WordListDB.QUERY("UPDATE words SET count = ('" . prefs_LearnCount . "') WHERE word = '" . AddWordTransformed . "');")
+               ;Update the 'lastused' field as well
+               g_WordListDB.QUERY("UPDATE words SET count = ('" . prefs_LearnCount . "'), lastused = (select datetime(strftime('%s','now'), 'unixepoch')) WHERE word = '" . AddWordTransformed . "';")
             }
          } else {
             UpdateWordCount(AddWord,0) ;Increment the word count if it's already in the list and we aren't forcing it on
          }
       }
+	  
+      ;Since this section can only be reached by the above two conditions, this means that the word was either new and added; or it was
+      ;previous known and updated in the list.
+      ;Time to record the word hierarchy (parent-child relationship) information:
+	  
+      UpdateWordHierarchy(AddWordTransformed)
    }
    
    Return
@@ -306,7 +327,7 @@ CheckValid(Word,ForceLearn=false)
       {
          return
       }
-   } else if ( RegExMatch(Word, "S)[a-zA-Zà-öø-ÿÀ-ÖØ-ß]") = 0 )
+   } else if ( RegExMatch(Word, "S)[a-zA-ZÃ -Ã¶Ã¸-Ã¿Ã€-Ã–Ã˜-ÃŸ]") = 0 )
    {
       Return
    }
@@ -370,8 +391,29 @@ UpdateWordCount(word,SortOnly)
       Return
 
    StringReplace, wordEscaped, word, ', '', All
-   g_WordListDB.Query("UPDATE words SET count = count + 1 WHERE word = '" . wordEscaped . "';")
+   ;Update word count AND the lastused time for this word
+   g_WordListDB.Query("UPDATE words SET count = count + 1, lastused = (select datetime(strftime('%s','now'), 'unixepoch')) WHERE word = '" . wordEscaped . "';")
+
    
+   Return
+}
+
+;------------------------------------------------------------------------
+
+UpdateWordHierarchyCount(word)
+{
+   global prefs_LearnMode
+   global g_WordListDB
+   global g_Word_Minus1
+   ;Word = Word to increment count for
+   
+   ;Should only be called when LearnMode is on  
+   IfEqual, prefs_LearnMode, Off
+      Return
+
+   StringReplace, wordEscaped, word, ', '', All
+   StringReplace, wordMinus1Escaped, g_Word_Minus1, ', '', All
+   g_WordListDB.Query("UPDATE WordRelations SET count = count + 1, lastused = (select datetime(strftime('%s','now'), 'unixepoch')) WHERE word = '" . wordEscaped . "' and word_minus1 = '" . wordMinus1Escaped . "';")   
    Return
 }
 
@@ -390,6 +432,13 @@ CleanupWordList(LearnedWordsOnly := false)
    } else {
       g_WordListDB.Query("DELETE FROM Words WHERE count < " . prefs_LearnCount . " OR count IS NULL;")
    }
+
+   ;Zap all lastused values greater than a threshold (anything last used earlier than today) to reduce dataset size for lastused functionality
+   g_WordListDB.Query("UPDATE words SET lastused = 0 where lastused < date('now') and lastused <> 0;")
+   
+   ;Remove all word relationship that are under the threshold if older than 14 days.
+   g_WordListDB.Query("DELETE FROM WordRelations WHERE count < " . prefs_LearnCount . " AND lastused < DATE ('now','-14 day');")
+
    Progress, Off
 }
 
@@ -467,12 +516,42 @@ StrUnmark(string) {
    ; Remove combining marks and return result.
    string := RegExReplace(StrGet(&buf, len, "UTF-16"), "\pM")
    
-   StringReplace, string, string, æ, ae, All
-   StringReplace, string, string, Æ, AE, All
-   StringReplace, string, string, œ, oe, All
-   StringReplace, string, string, Œ, OE, All
-   StringReplace, string, string, ß, ss, All   
+   StringReplace, string, string, Ã¦, ae, All
+   StringReplace, string, string, Ã†, AE, All
+   StringReplace, string, string, Å“, oe, All
+   StringReplace, string, string, Å’, OE, All
+   StringReplace, string, string, ÃŸ, ss, All   
    
    return, string  
    
+}
+;------------------------------------------------------------------------
+
+BulkLearnFromClipboard(textblock)
+{
+   global g_TerminatingCharactersParsed
+   
+   ;Display progress bar window...
+   Progress, M, Please wait..., Bulk learning..., %g_ScriptTitle%
+
+   ;Count how many individual items there are, we need this number to display
+   ;an accurate progress bar.
+   Loop, Parse, textblock, %g_TerminatingCharactersParsed%`r`n%A_Tab%%A_Space%
+   {
+      ;Count the individual items
+      Counter++
+   }
+   
+   Loop, Parse, textblock, %g_TerminatingCharactersParsed%`r`n%A_Tab%%A_Space%
+   {
+      ;Display words to show progress...
+      ProgressPercent := Round(A_Index/Counter * 100)
+      Progress, %ProgressPercent%, Please wait..., %A_LoopField%, %g_ScriptTitle%
+      AddWordToList(A_LoopField, 0,"ForceLearn")
+   }
+   
+   ;Turn off progress bar window...
+   Progress, Off
+   
+   return
 }
