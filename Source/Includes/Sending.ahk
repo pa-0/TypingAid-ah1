@@ -33,6 +33,7 @@ SendWord(WordIndex)
    }
    ; Update Typed Count
    UpdateWordCount(sending,0)
+   UpdateWordHierarchy(sending)
    SendFull(sending, ForceBackspace)   
    ClearAllVars(true)
    Return
@@ -64,7 +65,7 @@ SendFull(SendValue,ForceBackspace=false)
          {
             Capitalize := true
          }
-      } else if ( RegExMatch(Substr(g_Word, 1, 1), "S)[A-ZÀ-ÖØ-ß]") > 0 )
+      } else if ( RegExMatch(Substr(g_Word, 1, 1), "S)[A-ZÃ€-Ã–Ã˜-ÃŸ]") > 0 )
       {
          Capitalize := true
       }
