@@ -101,6 +101,8 @@ RebuildDatabase()
 	
 	CreateWordlistsTable()
 	
+	CreateWordRelationTable()
+	
 	SetDbVersion()
 	g_WordListDB.EndTransaction()
 		
@@ -249,7 +251,7 @@ CreateWordsTable(WordsTableName:="Words")
 {
 	global g_WordListDB
 	
-	IF not g_WordListDB.Query("CREATE TABLE " . WordsTableName . " (wordindexed TEXT NOT NULL, word TEXT NOT NULL, count INTEGER, worddescription TEXT, wordreplacement TEXT NOT NULL, PRIMARY KEY (word, wordreplacement) );")
+	IF not g_WordListDB.Query("CREATE TABLE " . WordsTableName . " (wordindexed TEXT NOT NULL, word TEXT NOT NULL, count INTEGER, worddescription TEXT, wordreplacement TEXT NOT NULL, lastused INTEGER DEFAULT (0), PRIMARY KEY (word, wordreplacement) );")
 	{
 		ErrMsg := g_WordListDB.ErrMsg()
 		ErrCode := g_WordListDB.ErrCode()
@@ -280,6 +282,19 @@ CreateWordlistsTable()
 		ErrMsg := g_WordListDB.ErrMsg()
 		ErrCode := g_WordListDB.ErrCode()
 		msgbox Cannot Create Wordlists Table - fatal error: %ErrCode% - %ErrMsg%
+		ExitApp
+	}
+}
+
+CreateWordRelationTable()
+{
+	global g_WordListDB
+	
+	IF not g_WordListDB.Query("CREATE TABLE WordRelations (word_minus1 TEXT NOT NULL, word TEXT NOT NULL, count INTEGER, lastused INTEGER DEFAULT (0), PRIMARY KEY ( word_minus1, word ));")
+	{
+		ErrMsg := g_WordListDB.ErrMsg()
+		ErrCode := g_WordListDB.ErrCode()
+		msgbox Cannot Create WordRelations Table - fatal error: %ErrCode% - %ErrMsg%
 		ExitApp
 	}
 }
