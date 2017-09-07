@@ -413,7 +413,7 @@ UpdateWordHierarchyCount(word)
 
    StringReplace, wordEscaped, word, ', '', All
    StringReplace, wordMinus1Escaped, g_Word_Minus1, ', '', All
-   g_WordListDB.Query("UPDATE WordRelations SET count = count + 1, lastused = (select datetime(strftime('%s','now'), 'unixepoch')) WHERE word = '" . wordEscaped . "' and word_minus1 = '" . wordMinus1Escaped . "';")   
+   g_WordListDB.Query("UPDATE WordRelations SET count = count + 1, lastused = (select datetime(strftime('%s','now'), 'unixepoch')) WHERE word = (select ID from words where word = '" . wordEscaped . "') and word_minus1 = (select ID from words where word = '" . wordMinus1Escaped . "');")   
    Return
 }
 
@@ -428,16 +428,19 @@ CleanupWordList(LearnedWordsOnly := false)
    global prefs_LearnCount
    Progress, M, Please wait..., Cleaning wordlist, %g_ScriptTitle%
    if (LearnedWordsOnly) {
-      g_WordListDB.Query("DELETE FROM Words WHERE count < " . prefs_LearnCount . " AND count IS NOT NULL;")
+      g_WordListDB.Query("DELETE FROM Words WHERE count < " . prefs_LearnCount . " AND count IS NOT NULL and lastused < DATE('now','-7 day');")
    } else {
       g_WordListDB.Query("DELETE FROM Words WHERE count < " . prefs_LearnCount . " OR count IS NULL;")
    }
 
    ;Zap all lastused values greater than a threshold (anything last used earlier than today) to reduce dataset size for lastused functionality
-   g_WordListDB.Query("UPDATE words SET lastused = 0 where lastused < date('now') and lastused <> 0;")
+   g_WordListDB.Query("UPDATE words SET lastused = 0 where lastused < DATE('now','-7 day') and lastused <> 0;")
    
-   ;Remove all word relationship that are under the threshold if older than 14 days.
-   g_WordListDB.Query("DELETE FROM WordRelations WHERE count < " . prefs_LearnCount . " AND lastused < DATE ('now','-14 day');")
+   ;Remove all word relationship that are under the threshold if older than 7 days.
+   g_WordListDB.Query("DELETE FROM WordRelations WHERE count < " . prefs_LearnCount . " AND lastused < DATE ('now','-7 day');")
+   
+   ;Remove all words relationships that are not in the word list [not really required due to constraint on table]
+   g_WordListDB.Query("DELETE FROM WordRelations WHERE word NOT IN (SELECT ID FROM words) OR word_minus1 NOT IN (SELECT ID FROM words);")
 
    Progress, Off
 }
