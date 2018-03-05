@@ -9,3 +9,14 @@ Build/Bin/TypingAid64-Alex.exe.log
 Build/Bin/WordlistLearned.db
 Build/Bin/WordlistLearned.db-journal
 Build/BuildSettings(need2ndIcon).PNG
+Build/AHK-Studio.bat
+Build/AHK-Studio.lnk
+*.log
+*.db
+*.db-journal
+TAHelper/.vs
+TAHelper/TAHelper/TAHelper.vcxproj.*
+TAHelper/Win32
+TAHelper/x64
+*.sln
+*.obj

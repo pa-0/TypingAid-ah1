@@ -1,0 +1,20 @@
+11:04 PM 3/4/2018
+
+How to use:
+0. To check in, use C:\Users\10114976\AppData\Local\GitHubDesktop\GitHubDesktop.exe
+1. I edit *.ahk files with Notepad++; There is also a debugger plugin Plugins > DBGp,
+   I have not used it actively yet.
+2. I DO NOT use C:\GitHub\TypingAid\Build\AHK-Studio IDE -- stopped for now. 
+   It seems powerful, but (a) unusual UI and (b) maybe many things do not work 
+   (or I use them incorrectly).
+3. To "compile" TypingAid.ahk, run C:\GitHub\TypingAid\Build\Ahk2Exe
+4. Then, to start compiled version, run C:\GitHub\TypingAid\Build\Bin\TypingAid64-Alex.exe,
+   either directly or from Visual Studio, for debugging TAHelper.dll.
+5. Another option is to run TypingAid.ahk without compilation, using TypingAid-Run.bat 
+   and then (not tested yet) to attach to process from VS.
+
+
+1st checkin.
+1. Added TAHelper.dll to process strings in convenient environment.
+1a. Meanwhile, I am only adding ellipsis, and this destroys insertion functionality. Need work.
+2. Installed debugger plugin in Notepad++; prepared *.bat to run without compilation. 

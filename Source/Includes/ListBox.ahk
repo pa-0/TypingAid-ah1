@@ -244,10 +244,10 @@ SetupMatchPosition()
 {
    global g_MatchPos
    global g_MatchStart
-   global g_MatchTotal
+   global g_MatchTotal			;AlexF count of matched words
    global g_OldMatch
    global g_OldMatchStart
-   global g_SingleMatch
+   global g_SingleMatch			;AlexF array of matched words
    global prefs_ArrowKeyMethod
    global prefs_ListBoxRows
    
@@ -321,7 +321,7 @@ RebuildMatchList()
    global g_MatchLongestLength
    global g_MatchPos
    global g_MatchStart
-   global g_MatchTotal
+   global g_MatchTotal			;AlexF count of matched words
    global g_OriginalMatchStart
    global prefs_ListBoxRows
    
@@ -361,13 +361,18 @@ RebuildMatchList()
    Return
 }
 
+;AlexF 
+;	position - index of matched word in g_SingleMatch
+;	MaxLength - max count of characters in the matched words (approximately? +spaces?)
+;	HalfLength - related to description and replacement, not interesting for me.
+;	LongestBaseLength - max count of characters in the matched words
 AddToMatchList(position, MaxLength, HalfLength, LongestBaseLength, ComputeBaseLengthOnly)
 {
    global g_DelimiterChar
    global g_Match
    global g_MatchStart
    global g_NumKeyMethod
-   global g_SingleMatch
+   global g_SingleMatch			;AlexF array of matched words
    global g_SingleMatchDescription
    global g_SingleMatchReplacement
    global prefs_ListBoxFontFixed
