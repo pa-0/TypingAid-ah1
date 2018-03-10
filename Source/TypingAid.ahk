@@ -84,6 +84,18 @@ if (A_PtrSize == 8) {
    g_SetClassLongFunction := "SetClassLong"
 }
 g_PID := DllCall("GetCurrentProcessId")
+
+; dllPath := "C:\GitHub\TypingAid\Build\Bin\Lib\x64\TAHelperU64.dll"
+dllPath := "C:\GitHub\TypingAid\TAHelper\x64\Debug\TAHelperU64.dll"
+g_AlexF_Dll := DllCall("LoadLibrary", "WStr", dllPath) ; , "Ptr")
+MsgBox % "Loaded " . dllPath . ". Handle: " . g_AlexF_Dll . ". ErrorLevel: " . ErrorLevel
+
+; foo := 3
+; foo1 := DllCall("TAHelperU64.dll\Add5", "Int", foo, "Int")
+; MsgBox % "Calculated " . foo . " Add5 = " . foo1 . ". ErrorLevel: " . ErrorLevel
+
+
+
 AutoTrim, Off 
 
 InitializeListBox()
@@ -298,8 +310,8 @@ RecomputeMatchesTimer:
 RecomputeMatches()
 {
    ; This function will take the given word, and will recompile the list of matches and redisplay the wordlist.
-   global g_MatchTotal
-   global g_SingleMatch
+   global g_MatchTotal			;AlexF count of matched words
+   global g_SingleMatch			;AlexF array of matched words
    global g_SingleMatchDescription
    global g_SingleMatchReplacement
    global g_Word
@@ -374,7 +386,7 @@ RecomputeMatches()
    }
    
    WhereQuery := " WHERE wordindexed GLOB '" . WordMatchEscaped . "*' " . SuppressMatchingWordQuery . WordAccentQuery
-   
+   ;AlexF one-column, one-row table with minimum of counts of occurencies of first 'LimitTotalMatches' learned words.
    NormalizeTable := g_WordListDB.Query("SELECT MIN(count) AS normalize FROM Words" . WhereQuery . "AND count IS NOT NULL LIMIT " . LimitTotalMatches . ";")
    
    for each, row in NormalizeTable.Rows
@@ -395,18 +407,27 @@ RecomputeMatches()
    } else {
       OrderByQuery .= "ROWID else 'z'"
    }
-   
+   ;AlexF (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words
    OrderByQuery .= " end, CASE WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - " . WordLen . ")))) end DESC, Word"
       
+   ;AlexF table of matched words, with descriptions and replacements ()
    Matches := g_WordListDB.Query("SELECT word, worddescription, wordreplacement FROM Words" . WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";")
    
-   g_SingleMatch := Object()
+   g_SingleMatch := Object() ;AlexF -- array of matched words
    g_SingleMatchDescription := Object()
    g_SingleMatchReplacement := Object()
    
    for each, row in Matches.Rows
    {      
-      g_SingleMatch[++g_MatchTotal] := row[1]
+  
+      oldLength := StrLen(row[1])
+      VarSetCapacity(word, oldLength + 12, 0) ; 12 bytes, just in case. They say, for Unicode 2 bytes per char is enough. Apparently, they are not using UTF-8 here?
+      word := row[1]
+  
+      DllCall("TAHelperU64.dll\AddEllipses1", "Str", word)
+;      MsgBox % "Converted '" . row[1] . "' of length " . oldLength . " to '" . word . "' of length " . StrLen(word) . ". ErrorLevel: " . ErrorLevel
+
+      g_SingleMatch[++g_MatchTotal] := word ; row[1]
       g_SingleMatchDescription[g_MatchTotal] := row[2]
       g_SingleMatchReplacement[g_MatchTotal] := row[3]
       
