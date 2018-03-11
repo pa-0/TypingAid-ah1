@@ -1,0 +1,39 @@
+﻿7:55 PM 2/22/2018
+
+If I want to adapt this open-source app to my needs, I may drop some complicated features used to support programming languages, auto-corrections etc. This may allow me to simplify interface and expand functionality I want.
+
+What I may want:
+
+1. Key combination to stop/resume recording -- when I enter a passphrase? And show popup: "Not recording"
+2. Limit list-of-suggestions contents so it will never has a scrollbar.
+2a. Show recently learned words first?
+2b. Expose in settings: show learned words only, ignore wordlists.
+!3. Merge words with lower and upper case (especially first 3 letters; 3 = # of chars to show suggestions), since they are always typed anyway.
+3a. Capitalize end of the word, if the beginning has more capital letters than the stored word.
+!3b. If there are only few suggestions, show them after 2 chars, not 3; and show shorter than 6 char words.
+4. Show last learned words first.
+5. After "complete" action is performed, but I continue typing or editing this word -- learn it too.
+!6. If there are more than, say, 10 suggestions (10 = max word# to show), and few of them have 5 or more first characters the same( 5= min char# to show), merge them into one suggestion with ellipsis, and after applying this suggestion expand.
+7. Make it portable, on USB (maybe it is already portable). Have a key combination to kill it.
+8. > Hitting Page Up will bring you up 10 items, or to the first item. 
+   > Hitting Page Down will bring you down 10 items
+   I do not need this.
+9. > You can permanently learn a word by highlighting a word and hitting Ctrl-Shift-C
+   I do need this, but it may be broken. Fix! 
+   Actually: if I mistyped the word, it got learned, I'd like to correct and learn it - and 
+   forget the mistyped. Can it be done?
+10. Save in WordlistLearned.txt words with count - to edit and preserve count.
+
+??. Would it be possible to see the whole text in the app like Notepad++ or browser, and learn nearby words? Na-ah...
+
+Wordlist.txt
+WordlistLearned.txt
+WordlistLearned.db
+
+INSERT INTO Words (wordindexed, word, count, wordreplacement) VALUES
+('ABRUPTLY', 'abruptly', 1, ''),
+('ABSOLUTE', 'absolute', 4, ''),
+('ABSOLUTELY', 'absolutely', 618, '')
+
+
+

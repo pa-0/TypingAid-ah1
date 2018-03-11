@@ -87,6 +87,7 @@ g_PID := DllCall("GetCurrentProcessId")
 
 ; dllPath := "C:\GitHub\TypingAid\Build\Bin\Lib\x64\TAHelperU64.dll"
 dllPath := "C:\GitHub\TypingAid\TAHelper\x64\Debug\TAHelperU64.dll"
+dllPath := "C:\PROJECTS\GitHub\TypingAid\TAHelper\Win32\Debug\TAHelperU32.dll"
 g_AlexF_Dll := DllCall("LoadLibrary", "WStr", dllPath) ; , "Ptr")
 MsgBox % "Loaded " . dllPath . ". Handle: " . g_AlexF_Dll . ". ErrorLevel: " . ErrorLevel
 
@@ -424,7 +425,7 @@ RecomputeMatches()
       VarSetCapacity(word, oldLength + 12, 0) ; 12 bytes, just in case. They say, for Unicode 2 bytes per char is enough. Apparently, they are not using UTF-8 here?
       word := row[1]
   
-      DllCall("TAHelperU64.dll\AddEllipses1", "Str", word)
+; TODO: RESTORE OR DEVELOP FURTHER      DllCall("TAHelperU32.dll\AddEllipses1", "Str", word)
 ;      MsgBox % "Converted '" . row[1] . "' of length " . oldLength . " to '" . word . "' of length " . StrLen(word) . ". ErrorLevel: " . ErrorLevel
 
       g_SingleMatch[++g_MatchTotal] := word ; row[1]
