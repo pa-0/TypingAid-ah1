@@ -20,3 +20,4 @@ TAHelper/Win32
 TAHelper/x64
 *.sln
 *.obj
+/Source/Keyboard warning.PNG

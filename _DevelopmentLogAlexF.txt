@@ -10,7 +10,7 @@ How to use:
 3. To "compile" TypingAid.ahk, run C:\GitHub\TypingAid\Build\Ahk2Exe
 4. Then, to start compiled version, run C:\GitHub\TypingAid\Build\Bin\TypingAid64-Alex.exe,
    either directly or from Visual Studio, for debugging TAHelper.dll.
-5. Another option is to run TypingAid.ahk without compilation, using TypingAid-Run.bat 
+5. Another option is to run TypingAid.ahk without compilation, using Run TypingAid.bat (works!)
    and then (not tested yet) to attach to process from VS.
 
 

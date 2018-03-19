@@ -85,8 +85,8 @@ if (A_PtrSize == 8) {
 }
 g_PID := DllCall("GetCurrentProcessId")
 
-; dllPath := "C:\GitHub\TypingAid\Build\Bin\Lib\x64\TAHelperU64.dll"
-dllPath := "C:\GitHub\TypingAid\TAHelper\x64\Debug\TAHelperU64.dll"
+; dllPath := "C:\PROJECTS\GitHub\TypingAid\TAHelper\Win32\Debug\TAHelperU32.dll"
+  dllPath :=           "C:\GitHub\TypingAid\TAHelper\x64\Debug\TAHelperU64.dll"
 g_AlexF_Dll := DllCall("LoadLibrary", "WStr", dllPath) ; , "Ptr")
 MsgBox % "Loaded " . dllPath . ". Handle: " . g_AlexF_Dll . ". ErrorLevel: " . ErrorLevel
 
@@ -424,7 +424,7 @@ RecomputeMatches()
       VarSetCapacity(word, oldLength + 12, 0) ; 12 bytes, just in case. They say, for Unicode 2 bytes per char is enough. Apparently, they are not using UTF-8 here?
       word := row[1]
   
-      DllCall("TAHelperU64.dll\AddEllipses1", "Str", word)
+; Works:     DllCall("TAHelperU64.dll\AddEllipses1", "Str", word)
 ;      MsgBox % "Converted '" . row[1] . "' of length " . oldLength . " to '" . word . "' of length " . StrLen(word) . ". ErrorLevel: " . ErrorLevel
 
       g_SingleMatch[++g_MatchTotal] := word ; row[1]
@@ -441,6 +441,45 @@ RecomputeMatches()
       Return 
    } 
    
+   ; AlexF - Learning DllCall *again* -- START
+   
+   /* 
+   ;------------------------------------------
+   numbers := 0 ; [] WORKS - 1
+   index := 0
+   intSize := 4 ; A_PtrSize = 8 on 64-bit system?
+   VarSetCapacity(numbers,g_MatchTotal * intSize) ; create a block of memory
+   Loop % g_MatchTotal
+   {
+		index += 1
+		NumPut(10010 * index, numbers, (index - 1) * intSize)
+   }
+   DllCall("TAHelperU64.dll\ReadNumbers", "Ptr", &numbers, "Int", index)
+
+   ;------------------------------------------
+   strings := "" ; WORKS - 2
+   foo1 := "Foo1"
+   foo2 := "fOO2"
+   MsgBox % "Address of foo1 is " . &foo1 . "; Content of foo1 is " . foo1 . "; The code of the first char is " *(&foo1)
+   MsgBox % "Address of foo2 is " . &foo2 . "; Content of foo2 is " . foo2 . "; The code of the first char is " *(&foo2)
+   VarSetCapacity(strings,2 * A_PtrSize + 128) ; create a block of memory
+   NumPut(&foo1, strings, 0)
+   NumPut(&foo2, strings, A_PtrSize)
+   DllCall("TAHelperU64.dll\AddEllipses", "Ptr", &strings, "Int", 2)
+
+   ;------------------------------------------
+   strings := "" ; WORKS - 3
+   VarSetCapacity(strings,g_MatchTotal * A_PtrSize + 128) ; create a block of memory
+   Loop % g_MatchTotal
+   {
+		index += 1
+		word%index% := g_SingleMatch[index]
+		NumPut(&(word%index%), &strings, (index - 1) * A_PtrSize)
+   }
+   DllCall("TAHelperU64.dll\AddEllipses", "Ptr", &strings, "Int", g_MatchTotal)
+   */
+
+  
    SetupMatchPosition()
    RebuildMatchList()
    ShowListBox()
