@@ -90,9 +90,12 @@ WinChanged(hWinEventHook, event, wchwnd, idObject, idChild, dwEventThread, dwmsE
    Return
 }
 
+; AlexF:
+;  De-activates (removes focus from) the ListBox, activates g_Active_Id window
+;  return true if ListBox was active
 SwitchOffListBoxIfActive()
 {   
-   global g_Active_Id
+   global g_Active_Id   ; AlexF HWND handle of the window in which typing occurs
    global g_ListBox_Id
    global g_ManualActivate
    

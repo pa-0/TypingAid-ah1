@@ -28,13 +28,14 @@ InitializeListBox()
 
    Return
 }
-   
+
+; AlexF Process click or double click into list of words (matches)
 ListBoxClickItem(wParam, lParam, msg, ClickedHwnd)
 {
    global
    Local NewClickedItem
    Local TempRows
-   static LastClickedItem
+   static LastClickedItem  ; AlexF index of the selected word
    
    TempRows := GetRows()
    
@@ -213,9 +214,9 @@ ListBoxEnd()
 
 SavePriorMatchPosition()
 {
-   global g_MatchPos
-   global g_MatchStart
-   global g_OldMatch
+   global g_MatchPos         ;AlexF current highlighted position in the listbox
+   global g_MatchStart       ;AlexF position of the first word (match) to be shown in the listbox
+   global g_OldMatch         ;AlexF either last highlighted word or last highlighted position in the listbox, depending on prefs_ArrowKeyMethod
    global g_OldMatchStart
    global g_SingleMatch
    global prefs_ArrowKeyMethod
@@ -240,14 +241,16 @@ SavePriorMatchPosition()
    Return
 }
 
+; AlexF Calculates initial value of g_MatchPos - highlighted position in the listbox.
+; Depending on prefs_ArrowKeyMethod, it is either the first, or last, or previously selected word.
 SetupMatchPosition()
 {
-   global g_MatchPos
-   global g_MatchStart
-   global g_MatchTotal			;AlexF count of matched words
+   global g_MatchPos         ;AlexF current highlighted position in the listbox
+   global g_MatchStart       ;AlexF position of the first word (match) to be shown in the listbox
+   global g_MatchTotal       ;AlexF count of matched words
    global g_OldMatch
    global g_OldMatchStart
-   global g_SingleMatch			;AlexF array of matched words
+   global g_SingleMatch      ;AlexF array of matched words
    global prefs_ArrowKeyMethod
    global prefs_ListBoxRows
    
@@ -317,11 +320,11 @@ SetupMatchPosition()
 
 RebuildMatchList()
 {
-   global g_Match
+   global g_Match                ;AlexF concatenation of all the lines in the listbox, separated by g_DelimiterChar
    global g_MatchLongestLength
    global g_MatchPos
-   global g_MatchStart
-   global g_MatchTotal			;AlexF count of matched words
+   global g_MatchStart           ;AlexF position of the first word (match) to be shown in the listbox
+   global g_MatchTotal           ;AlexF count of matched words
    global g_OriginalMatchStart
    global prefs_ListBoxRows
    
@@ -344,6 +347,7 @@ RebuildMatchList()
    MaxLength := ComputeListBoxMaxLength()
    HalfLength := Round(MaxLength/2)
    
+   ; Preliminary (?) estimate LongestBaseLength
    Loop, %g_MatchTotal%
    {
       CurrentLength := AddToMatchList(A_Index, MaxLength, HalfLength, 0, true)
@@ -351,6 +355,7 @@ RebuildMatchList()
          LongestBaseLength := CurrentLength      
    }
    
+   ; Actually fill out the listbox
    Loop, %g_MatchTotal%
    {
       CurrentLength := AddToMatchList(A_Index, MaxLength, HalfLength, LongestBaseLength, false)
@@ -362,17 +367,20 @@ RebuildMatchList()
 }
 
 ;AlexF 
-;	position - index of matched word in g_SingleMatch
-;	MaxLength - max count of characters in the matched words (approximately? +spaces?)
-;	HalfLength - related to description and replacement, not interesting for me.
-;	LongestBaseLength - max count of characters in the matched words
+; Upends g_Match - a string of all the matches - with word at given position. 
+; If (ComputeBaseLengthOnly), does not actually adds the word, only calculates the line width.
+;   position - index of matched word in g_SingleMatch
+;   MaxLength - max count of characters in the matched words (approximately? +spaces?)
+;   HalfLength - related to description and replacement, not interesting for me.
+;   LongestBaseLength - max count of characters in the matched words
+; Returns number of characters (width) of the added line (I guess).
 AddToMatchList(position, MaxLength, HalfLength, LongestBaseLength, ComputeBaseLengthOnly)
 {
    global g_DelimiterChar
-   global g_Match
-   global g_MatchStart
+   global g_Match                ;AlexF output, concatenation of all the lines in the listbox, separated by g_DelimiterChar
+   global g_MatchStart           ;AlexF position of the first word (match) to be shown in the listbox
    global g_NumKeyMethod
-   global g_SingleMatch			;AlexF array of matched words
+   global g_SingleMatch          ;AlexF array of matched words
    global g_SingleMatchDescription
    global g_SingleMatchReplacement
    global prefs_ListBoxFontFixed
@@ -428,6 +436,7 @@ AddToMatchList(position, MaxLength, HalfLength, LongestBaseLength, ComputeBaseLe
    Tabs = 
    Remainder := 0
    
+   ; AlexF -- adding 2nd and 3rd columns to the list, not interesting for me
    if (AdditionalDataExists) 
    {
       if (g_SingleMatchReplacement[position])
@@ -735,6 +744,7 @@ ForceWithinMonitorBounds(ByRef ListBoxPosX,ByRef ListBoxPosY,ListBoxActualSizeW,
 
 ;------------------------------------------------------------------------
 
+; Returns count of rows in the to-be-shown listbox. AlexF.
 GetRows()
 {
    global g_MatchTotal

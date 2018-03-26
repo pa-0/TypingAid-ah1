@@ -162,6 +162,7 @@ ReverseWordNums(LearnedWordsCount)
 
 ;------------------------------------------------------------------------
 
+; AlexF  Add word to the database (or increase count of the exisiting word), if appropriate
 AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCount = false)
 {
    ;AddWord = Word to add to the list

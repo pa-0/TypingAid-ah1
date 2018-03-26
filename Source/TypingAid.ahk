@@ -159,6 +159,9 @@ MainLoop()
    }
 }
 
+; AlexF
+;  Given pressed character or terminating key, takes appropriate action.
+;  (I think that only one of the two is not empty)
 ProcessKey(InputChar,EndKey)
 {
    global g_Active_Id
@@ -168,7 +171,7 @@ ProcessKey(InputChar,EndKey)
    global g_OldCaretX
    global g_OldCaretY
    global g_TerminatingCharactersParsed
-   global g_Word
+   global g_Word  ; AlexF word typed by user
    global prefs_DetectMouseClickMove
    global prefs_EndWordCharacters
    global prefs_ForceNewWordCharacters
@@ -185,7 +188,7 @@ ProcessKey(InputChar,EndKey)
       EndKey = Max
    }
    
-   IfEqual, EndKey, NewInput
+   IfEqual, EndKey, NewInput  ; AlexF: redundant? Typo? NewInput is not defined...
       Return
 
    IfEqual, EndKey, Endkey:Tab
@@ -310,8 +313,8 @@ RecomputeMatchesTimer:
 RecomputeMatches()
 {
    ; This function will take the given word, and will recompile the list of matches and redisplay the wordlist.
-   global g_MatchTotal			;AlexF count of matched words
-   global g_SingleMatch			;AlexF array of matched words
+   global g_MatchTotal         ;AlexF count of matched words
+   global g_SingleMatch        ;AlexF array of matched words
    global g_SingleMatchDescription
    global g_SingleMatchReplacement
    global g_Word
@@ -441,7 +444,7 @@ RecomputeMatches()
       Return 
    } 
    
-   ; AlexF - Learning DllCall *again* -- START
+   ; AlexF - Learning DllCall -- START
    
    /* 
    ;------------------------------------------
@@ -451,8 +454,8 @@ RecomputeMatches()
    VarSetCapacity(numbers,g_MatchTotal * intSize) ; create a block of memory
    Loop % g_MatchTotal
    {
-		index += 1
-		NumPut(10010 * index, numbers, (index - 1) * intSize)
+      index += 1
+      NumPut(10010 * index, numbers, (index - 1) * intSize)
    }
    DllCall("TAHelperU64.dll\ReadNumbers", "Ptr", &numbers, "Int", index)
 
@@ -472,16 +475,16 @@ RecomputeMatches()
    VarSetCapacity(strings,g_MatchTotal * A_PtrSize + 128) ; create a block of memory
    Loop % g_MatchTotal
    {
-		index += 1
-		word%index% := g_SingleMatch[index]
-		NumPut(&(word%index%), &strings, (index - 1) * A_PtrSize)
+      index += 1
+      word%index% := g_SingleMatch[index]
+      NumPut(&(word%index%), &strings, (index - 1) * A_PtrSize)
    }
    DllCall("TAHelperU64.dll\AddEllipses", "Ptr", &strings, "Int", g_MatchTotal)
    */
 
   
-   SetupMatchPosition()
-   RebuildMatchList()
+   SetupMatchPosition() ; what position to highlight in the listbox
+   RebuildMatchList() ; generate g_Match - concatenation of all the lines in the listbox
    ShowListBox()
 }
 
@@ -701,8 +704,8 @@ Return
 CheckWord(Key)
 {
    global g_ListBox_Id
-   global g_Match
-   global g_MatchStart
+   global g_Match          ;AlexF input, concatenation of all the lines in the listbox, separated by g_DelimiterChar
+   global g_MatchStart     ;AlexF position of the first word (match) to be shown in the listbox
    global g_NumKeyMethod
    global g_SingleMatch
    global g_Word
@@ -845,9 +848,9 @@ CheckWord(Key)
 EvaluateUpDown(Key)
 {
    global g_ListBox_Id
-   global g_Match
-   global g_MatchPos
-   global g_MatchStart
+   global g_Match            ;AlexF input, concatenation of all the lines in the listbox, separated by g_DelimiterChar
+   global g_MatchPos         ;AlexF position (index) of the currently selected word (match)
+   global g_MatchStart       ;AlexF position of the first word (match) to be shown in the listbox
    global g_MatchTotal
    global g_OriginalMatchStart
    global g_SingleMatch
@@ -898,6 +901,7 @@ EvaluateUpDown(Key)
       Return
    }
    
+   ; AlexF  !!! SOMEWHERE HERE I NEED TO PREVENT call to ClearAllVars()??
    if ( ( Key = "$^Enter" ) || ( Key = "$Tab" ) || ( Key = "$^Space" ) || ( Key = "$Right") || ( Key = "$Enter") || ( Key = "$LButton") || ( Key = "$NumpadEnter") )
    {
       IfEqual, Key, $^Enter
@@ -940,6 +944,7 @@ EvaluateUpDown(Key)
          Return
       }
       
+      ; AlexF  !!! SOMEWHERE HERE I NEED TO PREVENT call to ClearAllVars()??
       SendWord(g_MatchPos)
       Return
       
@@ -1173,6 +1178,8 @@ BuildTrayMenu()
 ;------------------------------------------------------------------------
 
 ; This is to blank all vars related to matches, ListBox and (optionally) word 
+; AlexF - this resets the whole search  for matching words.
+;        ClearWord - if true, forgets word typed by the user (and some other stuff)
 ClearAllVars(ClearWord)
 {
    global

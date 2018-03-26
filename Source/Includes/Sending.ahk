@@ -17,7 +17,8 @@ SendKey(Key)
 }
 
 ;------------------------------------------------------------------------
-   
+
+; AlexF - 'types' the word to the active window
 SendWord(WordIndex)
 {
    global g_SingleMatch
@@ -43,7 +44,7 @@ SendWord(WordIndex)
 SendFull(SendValue,ForceBackspace=false)
 {
    global g_Active_Id
-   global g_Word
+   global g_Word  ; AlexF word typed by user
    global prefs_AutoSpace
    global prefs_NoBackSpace
    global prefs_SendMethod
