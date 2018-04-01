@@ -227,7 +227,7 @@ AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCoun
          g_WordListDB.Query("INSERT INTO words (wordindexed, word, worddescription, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "'," . WordDescriptionQuery . "," . WordReplacementQuery . ");")
       }
       
-   } else if (prefs_LearnMode = "On" || ForceCountNewOnly == 1)
+   } else if (InStr(prefs_LearnMode, "On") || ForceCountNewOnly == 1)
    { 
       ; If this is an on-the-fly learned word
       AddWordInList := g_WordListDB.Query("SELECT * FROM words WHERE word = '" . AddWordTransformed . "';")
@@ -254,7 +254,7 @@ AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCoun
          
          ; must update wordreplacement since SQLLite3 considers nulls unique
          g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . CountValue . "','');")
-      } else IfEqual, prefs_LearnMode, On
+      } else if(InStr(prefs_LearnMode, "On"))
       {
          IfEqual, ForceCountNewOnly, 1                     
          {
@@ -345,7 +345,7 @@ DeleteWordFromList(DeleteWord)
    if DeleteWord is space ;If DeleteWord is only whitespace, skip out.
       Return
    
-   IfNotEqual, prefs_LearnMode, On
+   if(!InStr(prefs_LearnMode, "On"))
       Return
    
    StringReplace, DeleteWordEscaped, DeleteWord, ', '', All

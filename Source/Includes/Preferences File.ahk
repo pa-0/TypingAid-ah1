@@ -246,7 +246,8 @@ ValidatePreferences()
    if prefs_NumPresses not in 1,2
       prefs_NumPresses := dft_NumPresses
    
-   If prefs_LearnMode not in On,Off
+    ; AlexF
+   If prefs_LearnMode not in On,Off,On also after completion
       prefs_LearnMode := dft_LearnMode
    
    If prefs_LearnCount is not Integer

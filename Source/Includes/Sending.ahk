@@ -23,6 +23,8 @@ SendWord(WordIndex)
 {
    global g_SingleMatch
    global g_SingleMatchReplacement
+   global g_Word ; AlexF
+   global prefs_LearnMode ; AlexF
    ;Send the word
    if (g_SingleMatchReplacement[WordIndex])
    {
@@ -34,8 +36,16 @@ SendWord(WordIndex)
    }
    ; Update Typed Count
    UpdateWordCount(sending,0)
-   SendFull(sending, ForceBackspace)   
-   ClearAllVars(true)
+   SendFull(sending, ForceBackspace)
+   
+   alexF_LearnMode := "On also after completion"
+   if (prefs_LearnMode = alexF_LearnMode) { ; AlexF: case-insensitive comparison
+      g_Word := sending
+   } else {
+      ClearAllVars(true)
+   }
+
+   
    Return
 }  
 

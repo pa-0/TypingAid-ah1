@@ -86,9 +86,9 @@ if (A_PtrSize == 8) {
 g_PID := DllCall("GetCurrentProcessId")
 
 ; dllPath := "C:\PROJECTS\GitHub\TypingAid\TAHelper\Win32\Debug\TAHelperU32.dll"
-  dllPath :=           "C:\GitHub\TypingAid\TAHelper\x64\Debug\TAHelperU64.dll"
+  dllPath :=           "D:\GitHub\TypingAid\TAHelper\x64\Debug\TAHelperU64.dll"
 g_AlexF_Dll := DllCall("LoadLibrary", "WStr", dllPath) ; , "Ptr")
-MsgBox % "Loaded " . dllPath . ". Handle: " . g_AlexF_Dll . ". ErrorLevel: " . ErrorLevel
+; MsgBox % "Loaded " . dllPath . ". Handle: " . g_AlexF_Dll . ". ErrorLevel: " . ErrorLevel
 
 ; foo := 3
 ; foo1 := DllCall("TAHelperU64.dll\Add5", "Int", foo, "Int")
@@ -581,7 +581,7 @@ InitializeHotKeys()
    ; If we disable the number keys they never get to the input for some reason,
    ; so we need to keep them enabled as hotkeys
 
-   IfNotEqual, prefs_LearnMode, On
+   if(!InStr(prefs_LearnMode, "On"))
    {
       Hotkey, $^+Delete, Off
    } else {

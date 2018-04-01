@@ -110,7 +110,7 @@ ConstructGui()
    Gui, MenuGui:Tab, 1 ; General Settings
 
    Gui, MenuGui:Add, GroupBox, x%MenuGroup1BoxX% y%MenuRowY% w%MenuThreeColGroupWidth% h%MenuRowHeight% , Learn new words as you type
-   Menu_LearnModeOptions=|On|Off|
+   Menu_LearnModeOptions=|Off|On|On also after completion| ; AlexF
    StringReplace, Menu_LearnModeOptions, Menu_LearnModeOptions, |%prefs_LearnMode%|,|%prefs_LearnMode%||
    StringTrimLeft, Menu_LearnModeOptions, Menu_LearnModeOptions, 1
    Gui, MenuGui:Add, DDL, x%MenuGroup1EditX% y%MenuRowEditY% w%MenuThreeColEditWidth% r5 vprefs_LearnMode gEditValue, %Menu_LearnModeOptions%
@@ -925,7 +925,7 @@ SaveSettings()
       prefs_NoBackSpace=On
    
    ; Determine list of preferences to save
-   For key, value in Menu_ChangedPrefs
+   For key, value in Menu_ChangedPrefs 
    {
       IF (%key% <> value)
       {
