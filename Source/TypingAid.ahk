@@ -698,7 +698,26 @@ $^+Delete::
 DeleteSelectedWordFromList()
 Return
 
+; AlexF
+$Esc::
+HandleEscapeKey()
+Return
 ;------------------------------------------------------------------------
+
+; AlexF. If Esc is pressed and listbox is opened, close the listbox, but do not 
+; pass Esc further.
+HandleEscapeKey()
+{
+   global g_ListBox_Id
+   
+   IfNotEqual, g_ListBox_Id, 
+   {
+      ClearAllVars(1)
+   } else {
+      SendKey(A_ThisHotKey)
+   }
+   Return
+}
 
 ; If hotkey was pressed, check wether there's a match going on and send it, otherwise send the number(s) typed 
 CheckWord(Key)
@@ -901,7 +920,6 @@ EvaluateUpDown(Key)
       Return
    }
    
-   ; AlexF  !!! SOMEWHERE HERE I NEED TO PREVENT call to ClearAllVars()??
    if ( ( Key = "$^Enter" ) || ( Key = "$Tab" ) || ( Key = "$^Space" ) || ( Key = "$Right") || ( Key = "$Enter") || ( Key = "$LButton") || ( Key = "$NumpadEnter") )
    {
       IfEqual, Key, $^Enter
@@ -944,10 +962,8 @@ EvaluateUpDown(Key)
          Return
       }
       
-      ; AlexF  !!! SOMEWHERE HERE I NEED TO PREVENT call to ClearAllVars()??
       SendWord(g_MatchPos)
       Return
-      
    }
 
    PreviousMatchStart := g_OriginalMatchStart
