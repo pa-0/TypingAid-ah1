@@ -248,7 +248,7 @@ SetupMatchPosition()
    global g_MatchPos         ;AlexF current highlighted position in the listbox
    global g_MatchStart       ;AlexF position of the first word (match) to be shown in the listbox
    global g_MatchTotal       ;AlexF count of matched words
-   global g_OldMatch
+   global g_OldMatch         ;AlexF either last highlighted word or last highlighted position in the listbox, depending on prefs_ArrowKeyMethod
    global g_OldMatchStart
    global g_SingleMatch      ;AlexF array of matched words
    global prefs_ArrowKeyMethod

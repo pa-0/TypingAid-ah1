@@ -1078,12 +1078,17 @@ DeleteSelectedWordFromList()
 {
    global g_MatchPos
    global g_SingleMatch
-   
+   global prefs_ArrowKeyMethod ; AlexF
+
    if !(g_SingleMatch[g_MatchPos] = "") ;only continue if g_SingleMatch is not empty
    {
+      alexF := prefs_ArrowKeyMethod
+      prefs_ArrowKeyMethod := "LastPosition"
       
       DeleteWordFromList(g_SingleMatch[g_MatchPos])
       RecomputeMatches()
+      
+      prefs_ArrowKeyMethod := alexF
       Return
    }
    
