@@ -328,6 +328,7 @@ RecomputeMatches()
    
    SavePriorMatchPosition()
 
+   ;_1. Prepare for the search in DB
    ;Match part-word with command 
    g_MatchTotal = 0 
    
@@ -388,8 +389,9 @@ RecomputeMatches()
             }
    }
    
+   ;_2. First query - just find minimal frequency of matched words ('Normalize')
    WhereQuery := " WHERE wordindexed GLOB '" . WordMatchEscaped . "*' " . SuppressMatchingWordQuery . WordAccentQuery
-   ;AlexF one-column, one-row table with minimum of counts of occurencies of first 'LimitTotalMatches' learned words.
+   ;AlexF one-column, one-row table with minimum of counts of occurrences of first 'LimitTotalMatches' learned words.
    NormalizeTable := g_WordListDB.Query("SELECT MIN(count) AS normalize FROM Words" . WhereQuery . "AND count IS NOT NULL LIMIT " . LimitTotalMatches . ";")
    
    for each, row in NormalizeTable.Rows
@@ -401,20 +403,27 @@ RecomputeMatches()
    {
       Normalize := 0
    }
-      
-   WordLen := StrLen(g_Word)
-   OrderByQuery := " ORDER BY CASE WHEN count IS NULL then "
-   IfEqual, prefs_ShowLearnedFirst, On
-   {
-      OrderByQuery .= "ROWID + 1 else 0"
+   
+   ;_3. Second query - actually retrieve matches, in certain order (more frequent and longer words first)
+   alexF_OrderByLength := true
+   if (alexF_OrderByLength) {
+      OrderByQuery := " ORDER BY LENGTH(word)"
    } else {
-      OrderByQuery .= "ROWID else 'z'"
+      WordLen := StrLen(g_Word)
+      OrderByQuery := " ORDER BY CASE WHEN count IS NULL then "
+      IfEqual, prefs_ShowLearnedFirst, On
+      {
+         OrderByQuery .= "ROWID + 1 else 0"
+      } else {
+         OrderByQuery .= "ROWID else 'z'"
+      }
+      ;AlexF (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words
+      OrderByQuery .= " end, CASE WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - " . WordLen . ")))) end DESC, Word"
    }
-   ;AlexF (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words
-   OrderByQuery .= " end, CASE WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - " . WordLen . ")))) end DESC, Word"
-      
    ;AlexF table of matched words, with descriptions and replacements ()
-   Matches := g_WordListDB.Query("SELECT word, worddescription, wordreplacement FROM Words" . WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";")
+   query := "SELECT word, worddescription, wordreplacement FROM Words" 
+   query .= WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";"
+   Matches := g_WordListDB.Query(query)
    
    g_SingleMatch := Object() ;AlexF -- array of matched words
    g_SingleMatchDescription := Object()
@@ -424,10 +433,10 @@ RecomputeMatches()
    {      
   
       oldLength := StrLen(row[1])
-      VarSetCapacity(word, oldLength + 12, 0) ; 12 bytes, just in case. They say, for Unicode 2 bytes per char is enough. Apparently, they are not using UTF-8 here?
+      VarSetCapacity(word, oldLength + 12, 0) ;AlexF added. 12 bytes, just in case. They say, for Unicode 2 bytes per char is enough. Apparently, they are not using UTF-8 here?
       word := row[1]
   
-; Works:     DllCall("TAHelperU64.dll\AddEllipses1", "Str", word)
+; AlexF  - Works:     DllCall("TAHelperU64.dll\AddEllipses1", "Str", word)
 ;      MsgBox % "Converted '" . row[1] . "' of length " . oldLength . " to '" . word . "' of length " . StrLen(word) . ". ErrorLevel: " . ErrorLevel
 
       g_SingleMatch[++g_MatchTotal] := word ; row[1]
@@ -444,9 +453,8 @@ RecomputeMatches()
       Return 
    } 
    
-   ; AlexF - Learning DllCall -- START
-   
    /* 
+   ; AlexF - Learning DllCall
    ;------------------------------------------
    numbers := 0 ; [] WORKS - 1
    index := 0
