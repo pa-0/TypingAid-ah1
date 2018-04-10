@@ -45,6 +45,11 @@ ReadPreferences()
 
 SetTitleMatchMode, 2
 
+; === MY SETTINGS ===
+alexF_config_OrderByLength := true
+alexF_config_PreventScrollbar := true
+
+
 ;set windows constants
 g_EVENT_SYSTEM_FOREGROUND := 0x0003
 g_EVENT_SYSTEM_SCROLLINGSTART := 0x0012
@@ -325,6 +330,8 @@ RecomputeMatches()
    global prefs_NoBackSpace
    global prefs_ShowLearnedFirst
    global prefs_SuppressMatchingWord
+   global alexF_config_OrderByLength
+   global alexF_config_PreventScrollbar
    
    SavePriorMatchPosition()
 
@@ -338,7 +345,11 @@ RecomputeMatches()
          LimitTotalMatches := prefs_ListBoxRows
       else LimitTotalMatches = 10
    } else {
-      LimitTotalMatches = 200
+      if (alexF_config_PreventScrollbar) {
+         LimitTotalMatches := prefs_ListBoxRows
+      } else {
+         LimitTotalMatches = 200
+      }
    }
    
    StringUpper, WordMatchOriginal, g_Word
@@ -405,8 +416,7 @@ RecomputeMatches()
    }
    
    ;_3. Second query - actually retrieve matches, in certain order (more frequent and longer words first)
-   alexF_OrderByLength := true
-   if (alexF_OrderByLength) {
+   if (alexF_config_OrderByLength) {
       OrderByQuery := " ORDER BY LENGTH(word)"
    } else {
       WordLen := StrLen(g_Word)
