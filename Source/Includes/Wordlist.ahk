@@ -6,6 +6,8 @@ ReadWordList()
    global g_ScriptTitle
    global g_WordListDone
    global g_WordListDB
+   global alexF_config_BackupWordsAndCounts
+   
    ;mark the wordlist as not done
    g_WordListDone = 0
    
@@ -13,6 +15,9 @@ ReadWordList()
    
    Wordlist = %A_ScriptDir%\%WordlistFileName%
    WordlistLearned = %A_ScriptDir%\WordlistLearned.txt
+   if(alexF_config_BackupWordsAndCounts) {
+      WordlistLearned = %A_ScriptDir%\WordlistLearned.csv
+   }
    
    MaybeFixFileEncoding(Wordlist,"UTF-8")
    MaybeFixFileEncoding(WordlistLearned,"UTF-8")
@@ -58,7 +63,7 @@ ReadWordList()
    if (LoadWordlist) {
       Progress, M, Please wait..., Loading wordlist, %g_ScriptTitle%
       g_WordListDB.BeginTransaction()
-      ;reads list of words from file 
+      ;reads list of words from file. AlexF: these are non-learned, predefined lists.
       FileRead, ParseWords, %Wordlist%
       Loop, Parse, ParseWords, `n, `r
       {
@@ -109,20 +114,33 @@ ReadWordList()
       }
       
       g_WordListDB.BeginTransaction()
-      ;reads list of words from file 
-      FileRead, ParseWords, %WordlistLearned%
-      Loop, Parse, ParseWords, `n, `r
-      {
-         
-         AddWordToList(A_LoopField,0,"ForceLearn",LearnedWordsCount)
+      if(alexF_config_BackupWordsAndCounts) {
+         ;reads list of words and counts from file 
+         FileRead, WordsAndCounts, %WordlistLearned%
+         Loop, Parse, WordsAndCounts, `n, `r
+         {
+            wordAndCount := StrSplit(A_LoopField, ",") 
+            AddWordToList(wordAndCount[1] ,0,"ForceLearn", wordAndCount[2])
+         }
+         WordsAndCounts =
+      } else {
+         ;reads list of words from file 
+         FileRead, ParseWords, %WordlistLearned%
+         Loop, Parse, ParseWords, `n, `r
+         {
+            
+            AddWordToList(A_LoopField,0,"ForceLearn",LearnedWordsCount)
+         }
+         ParseWords =
       }
-      ParseWords =
       g_WordListDB.EndTransaction()
       
       Progress, 50, Please wait..., Converting learned words, %g_ScriptTitle%
 
-      ;reverse the numbers of the word counts in memory
-      ReverseWordNums(LearnedWordsCount)
+      if(!alexF_config_BackupWordsAndCounts) {
+         ;reverse the numbers of the word counts in memory
+         ReverseWordNums(LearnedWordsCount)
+      }
       
       g_WordListDB.Query("INSERT INTO LastState VALUES ('tableConverted','1',NULL);")
       
@@ -136,6 +154,11 @@ ReadWordList()
 
 ;------------------------------------------------------------------------
 
+;AlexF. This function is called if the database content in WordlistLearned.db was lost 
+;       and then recreated from the backup - WordlistLearned.db. It assigns word counts 
+;       according to the inverse order as the words are listed in WordlistLearned.txt.
+;       (They are ordered by frequency in WordlistLearned.txt, and this their *relative* frequencies are
+;       imitated). I SHOULD MAKE SURE NOT TO USE IT, because I will store actual frequencies.
 ReverseWordNums(LearnedWordsCount)
 {
    ; This function will reverse the read numbers since now we know the total number of words
@@ -144,6 +167,7 @@ ReverseWordNums(LearnedWordsCount)
 
    LearnedWordsCount+= (prefs_LearnCount - 1)
 
+   ; AlexF: table of learned words only
    LearnedWordsTable := g_WordListDB.Query("SELECT word FROM Words WHERE count IS NOT NULL;")
 
    g_WordListDB.BeginTransaction()
@@ -162,7 +186,7 @@ ReverseWordNums(LearnedWordsCount)
 
 ;------------------------------------------------------------------------
 
-; AlexF  Add word to the database (or increase count of the exisiting word), if appropriate
+; AlexF  Adds word to the database (or increases count of the existing word), if appropriate
 AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCount = false)
 {
    ;AddWord = Word to add to the list
@@ -180,19 +204,19 @@ AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCoun
    if !(LearnedWordsCount) {
       StringSplit, SplitAddWord, AddWord, |
       
-      IfEqual, SplitAddWord2, D
+      IfEqual, SplitAddWord2, D ; AlexF if there is a Definition. I won't need it.
       {
          AddWordDescription := SplitAddWord3
          AddWord := SplitAddWord1
-         IfEqual, SplitAddWord4, R
+         IfEqual, SplitAddWord4, R ; AlexF if there is a Replacement. I won't need it.
          {
             AddWordReplacement := SplitAddWord5
          }
-      } else IfEqual, SplitAddword2, R
+      } else IfEqual, SplitAddword2, R ; AlexF if there is a Replacement. I won't need it.
       {
          AddWordReplacement := SplitAddWord3
          AddWord := SplitAddWord1
-         IfEqual, SplitAddWord4, D
+         IfEqual, SplitAddWord4, D ; AlexF if there is a Definition. I won't need it.
          {
             AddWordDescription := SplitAddWord5
          }
@@ -396,6 +420,7 @@ CleanupWordList(LearnedWordsOnly := false)
 
 ;------------------------------------------------------------------------
 
+;AlexF. Updates content of "WordlistLearned.txt" file.
 MaybeUpdateWordlist()
 {
    global g_LegacyLearnedWords
@@ -406,7 +431,7 @@ MaybeUpdateWordlist()
    ; Update the Learned Words
    IfEqual, g_WordListDone, 1
    {
-      
+      ;AlexF. Get learned words sorted by frequency, most frequent first.
       SortWordList := g_WordListDB.Query("SELECT Word FROM Words WHERE count >= " . prefs_LearnCount . " AND count IS NOT NULL ORDER BY count DESC;")
       
       for each, row in SortWordList.Rows
@@ -419,8 +444,13 @@ MaybeUpdateWordlist()
          StringTrimRight, TempWordList, TempWordList, 2
    
          FileDelete, %A_ScriptDir%\Temp_WordlistLearned.txt
+         
+         ; AlexF. Write sorted words into "Temp_WordlistLearned.txt"
          FileAppendDispatch(TempWordList, A_ScriptDir . "\Temp_WordlistLearned.txt")
+         
+         ;AlexF. Then copy it into "WordlistLearned.txt"
          FileCopy, %A_ScriptDir%\Temp_WordlistLearned.txt, %A_ScriptDir%\WordlistLearned.txt, 1
+         
          FileDelete, %A_ScriptDir%\Temp_WordlistLearned.txt
          
          ; Convert the Old Wordlist file to not have ;LEARNEDWORDS;
@@ -441,6 +471,45 @@ MaybeUpdateWordlist()
    
    g_WordListDB.Close(),
    
+}
+
+;AlexF added this function. Updates content of "WordlistLearned.csv" file,
+;      which includes learned words and their frequencies.
+MaybeUpdateWordAndCountTextFile()
+{
+   global g_LegacyLearnedWords
+   global g_WordListDB
+   global g_WordListDone
+   global prefs_LearnCount
+   
+   ; Update the Learned Words
+   IfEqual, g_WordListDone, 1
+   {
+      ;AlexF. Get learned words sorted alphabetically.
+      LearnedWordsTable := g_WordListDB.Query("SELECT word, count FROM Words WHERE count >= " . prefs_LearnCount . " AND count IS NOT NULL ORDER BY wordindexed ASC;")
+      
+      for each, row in LearnedWordsTable.Rows
+      {
+         TempWordList .= row[1] . "," . row[2] . "`r`n"
+      }
+      
+      If ( LearnedWordsTable.Count() > 0 )
+      {
+         StringTrimRight, TempWordList, TempWordList, 2
+   
+         FileDelete, %A_ScriptDir%\Temp_WordlistLearned.csv
+         
+         ;Write words and counts into "Temp_WordlistLearned.csv"
+         FileAppendDispatch(TempWordList, A_ScriptDir . "\Temp_WordlistLearned.csv")
+         
+         ;AlexF. Then copy it into "WordlistLearned.csv"
+         FileCopy, %A_ScriptDir%\Temp_WordlistLearned.csv, %A_ScriptDir%\WordlistLearned.csv, 1
+         
+         FileDelete, %A_ScriptDir%\Temp_WordlistLearned.csv
+      }
+   }
+   
+   g_WordListDB.Close(),
 }
 
 ;------------------------------------------------------------------------

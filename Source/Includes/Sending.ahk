@@ -25,6 +25,8 @@ SendWord(WordIndex)
    global g_SingleMatchReplacement
    global g_Word ; AlexF
    global prefs_LearnMode ; AlexF
+   global alexF_config_OnAfterCompletion
+   
    ;Send the word
    if (g_SingleMatchReplacement[WordIndex])
    {
@@ -38,9 +40,9 @@ SendWord(WordIndex)
    UpdateWordCount(sending,0)
    SendFull(sending, ForceBackspace)
    
-   alexF_LearnMode := "On also after completion"
-   if (prefs_LearnMode = alexF_LearnMode) { ; AlexF: case-insensitive comparison
+   if (prefs_LearnMode = alexF_config_OnAfterCompletion) { ; AlexF: case-insensitive comparison
       g_Word := sending
+      RecomputeMatches()
    } else {
       ClearAllVars(true)
    }

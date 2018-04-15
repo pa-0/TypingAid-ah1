@@ -46,8 +46,11 @@ ReadPreferences()
 SetTitleMatchMode, 2
 
 ; === MY SETTINGS ===
+alexF_config_PreventScrollbar := true
+alexF_config_OnAfterCompletion := "On also after completion"
 alexF_config_OrderByLength := true
 alexF_config_PreventScrollbar := true
+alexF_config_BackupWordsAndCounts := true
 
 
 ;set windows constants
@@ -1245,6 +1248,8 @@ ClearAllVars(ClearWord)
 
 ;------------------------------------------------------------------------
 
+;AlexF: writes 'Text' into given file 'FileName'. "Dispatch" means that 
+;       the encoding (like UTF-8) is selected based on settings.
 FileAppendDispatch(Text,FileName,ForceEncoding=0)
 {
    IfEqual, A_IsUnicode, 1
@@ -1385,7 +1390,11 @@ MaybeSaveHelperWindowPos()
 MaybeWriteHelperWindowPos()
 
 ; Update the Learned Words
-MaybeUpdateWordlist()
+if(alexF_config_BackupWordsAndCounts) {
+   MaybeUpdateWordAndCountTextFile()
+} else {
+   MaybeUpdateWordlist()
+}
 
 ExitApp
 
