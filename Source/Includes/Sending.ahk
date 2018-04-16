@@ -22,20 +22,14 @@ SendKey(Key)
 SendWord(WordIndex)
 {
    global g_SingleMatch
-   global g_SingleMatchReplacement
    global g_Word ; AlexF
    global prefs_LearnMode ; AlexF
    global alexF_config_OnAfterCompletion
    
    ;Send the word
-   if (g_SingleMatchReplacement[WordIndex])
-   {
-      sending := g_SingleMatchReplacement[WordIndex]
-      ForceBackspace := true
-   } else {
-      sending := g_SingleMatch[WordIndex]
-      ForceBackspace := false
-   }
+   sending := g_SingleMatch[WordIndex]
+   ForceBackspace := false
+   
    ; Update Typed Count
    UpdateWordCount(sending,0)
    SendFull(sending, ForceBackspace)

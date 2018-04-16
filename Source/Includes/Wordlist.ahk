@@ -218,8 +218,7 @@ AddWordToList(AddWord,ForceCountNewOnly, LearnedWordCountValue=0)
 
    IfEqual, g_WordListDone, 0 ;if this is read from the wordlist, AlexF expects LearnedWordCountValue > 0
    {
-      ; must update wordreplacement since SQLLite3 considers nulls unique
-      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . LearnedWordCountValue . "','');")
+      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . LearnedWordCountValue . "');")
 
       Return
    } 
@@ -244,10 +243,8 @@ AddWordToList(AddWord,ForceCountNewOnly, LearnedWordCountValue=0)
          Return
             
       CountValue = 1
-               
       
-      ; must update wordreplacement since SQLLite3 considers nulls unique
-      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . CountValue . "','');")
+      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . CountValue . "');")
    } else
    {
       UpdateWordCount(AddWord,0) ;Increment the word count if it's already in the list and we aren't forcing it on
@@ -300,8 +297,8 @@ CheckValid(Word)
 
 ;AlexF. 
 ; AddWord - input, original word
-; AddWordTransformed - output, same word, with replacement ' => ''
-; AddWordIndexTransformed - output, same word, normalized, capitalized and with replacement ' => ''
+; AddWordTransformed - output, same word, with substitution ' => ''
+; AddWordIndexTransformed - output, same word, normalized, capitalized and with substitution ' => ''
 TransformWord(AddWord, ByRef AddWordTransformed, ByRef AddWordIndexTransformed)
 {
    AddWordIndex := AddWord

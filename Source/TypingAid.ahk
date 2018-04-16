@@ -324,7 +324,6 @@ RecomputeMatches()
    global g_MatchTotal         ;AlexF count of matched words
    global g_SingleMatch        ;AlexF array of matched words
    global g_SingleMatchDescription
-   global g_SingleMatchReplacement
    global g_Word
    global g_WordListDB
    global prefs_ArrowKeyMethod
@@ -433,14 +432,12 @@ RecomputeMatches()
       ;AlexF (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words
       OrderByQuery .= " end, CASE WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - " . WordLen . ")))) end DESC, Word"
    }
-   ;AlexF table of matched words, with descriptions and replacements ()
-   query := "SELECT word, worddescription, wordreplacement FROM Words" 
+   ;AlexF table of matched words
+   query := "SELECT word FROM Words" 
    query .= WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";"
    Matches := g_WordListDB.Query(query)
    
    g_SingleMatch := Object() ;AlexF -- array of matched words
-   g_SingleMatchDescription := Object()
-   g_SingleMatchReplacement := Object()
    
    for each, row in Matches.Rows
    {      
@@ -453,8 +450,6 @@ RecomputeMatches()
 ;      MsgBox % "Converted '" . row[1] . "' of length " . oldLength . " to '" . word . "' of length " . StrLen(word) . ". ErrorLevel: " . ErrorLevel
 
       g_SingleMatch[++g_MatchTotal] := word ; row[1]
-      g_SingleMatchDescription[g_MatchTotal] := row[2]
-      g_SingleMatchReplacement[g_MatchTotal] := row[3]
       
       continue
    }
@@ -1237,8 +1232,6 @@ ClearAllVars(ClearWord)
    }
    
    g_SingleMatch =
-   g_SingleMatchDescription =
-   g_SingleMatchReplacement =
    g_Match= 
    g_MatchPos=
    g_MatchStart= 
