@@ -7,12 +7,13 @@ SetDbVersion(dBVersion = 7)
 	g_WordListDB.Query("INSERT OR REPLACE INTO LastState VALUES ('databaseVersion', '" . dBVersion . "', NULL);")
 }
 
-
+;AlexF: If 
 ; returns true if we need to rebuild the whole database
 MaybeConvertDatabase()
 {
 	global g_WordListDB
 	
+   ;_1. Check database version and state ("converted" or not)
 	databaseVersionRows := g_WordListDB.Query("SELECT lastStateNumber FROM LastState WHERE lastStateItem = 'databaseVersion';")
 	
 	if (databaseVersionRows)
@@ -38,12 +39,14 @@ MaybeConvertDatabase()
 		}
 	}
 	
+   ;_2. If the database is empty (?), recreate it anew (still will be empty, but with correct schema)
 	IfNotEqual, WordlistConverted, 1
 	{
 		RebuildDatabase()		
 		return, true
 	}
 	
+/*  ;_3. Database was properly populated. Convert it to the latest version, if needed.
 	if (!databaseVersion)
 	{
 		RunConversionOne(WordlistConverted)
@@ -78,7 +81,7 @@ MaybeConvertDatabase()
 	{
 		RunConversionSeven()
 	}
-	
+ */
 	return, false
 }
 
@@ -105,7 +108,7 @@ RebuildDatabase()
 	g_WordListDB.EndTransaction()
 		
 }
-
+/*
 ;Runs the first conversion
 RunConversionOne(WordlistConverted)
 {
@@ -185,7 +188,7 @@ RunConversionFour()
 	
 	SetDbVersion(4)
 	g_WordListDB.EndTransaction()
-	*/
+	* /
 }
 
 ;Creates the Wordlists table
@@ -231,7 +234,7 @@ RunConversionSeven()
 	SetDbVersion(7)
 	g_WordListDB.EndTransaction()
 }
-
+*/
 CreateLastStateTable()
 {
 	global g_WordListDB

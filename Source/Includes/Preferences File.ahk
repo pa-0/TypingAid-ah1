@@ -246,7 +246,7 @@ ValidatePreferences()
    if prefs_NumPresses not in 1,2
       prefs_NumPresses := dft_NumPresses
    
-    ; AlexF
+   ; AlexF
    If prefs_LearnMode not in On,Off,On also after completion
       prefs_LearnMode := dft_LearnMode
    
@@ -373,6 +373,7 @@ ValidatePreferences()
       }
    }
    
+   ;AlexF g_ListBoxCharacterWidthComputed is an average width of one character, pixels
    if prefs_ListBoxCharacterWidth is Integer
    {
       g_ListBoxCharacterWidthComputed := prefs_ListBoxCharacterWidth

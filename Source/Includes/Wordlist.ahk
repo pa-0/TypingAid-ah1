@@ -1,4 +1,4 @@
-; These functions and labels are related maintenance of the wordlist
+; These functions and labels are related to maintenance of the wordlist
 
 ReadWordList()
 {
@@ -11,10 +11,11 @@ ReadWordList()
    ;mark the wordlist as not done
    g_WordListDone = 0
    
+   ;_1. Prepare two files and database for reading; reset journal
    WordlistFileName = wordlist.txt
    
-   Wordlist = %A_ScriptDir%\%WordlistFileName%
-   WordlistLearned = %A_ScriptDir%\WordlistLearned.txt
+   Wordlist = %A_ScriptDir%\%WordlistFileName% ; AlexF - file with predefined words (I do not have it so far)
+   WordlistLearned = %A_ScriptDir%\WordlistLearned.txt ; AlexF - file with learned words (a backup for the database)
    if(alexF_config_BackupWordsAndCounts) {
       WordlistLearned = %A_ScriptDir%\WordlistLearned.csv
    }
@@ -32,12 +33,15 @@ ReadWordList()
 	
    g_WordListDB.Query("PRAGMA journal_mode = TRUNCATE;")
    
+   ;_2. Maybe create a fresh new database (schema only)
    DatabaseRebuilt := MaybeConvertDatabase()
          
    FileGetSize, WordlistSize, %Wordlist%
    FileGetTime, WordlistModified, %Wordlist%, M
    FormatTime, WordlistModified, %WordlistModified%, yyyy-MM-dd HH:mm:ss
    
+   ;_3. I do not have 'Wordlists' table in database, hence LearnedWordsTable is empty.
+   ;    Not sure what this step does. Its result is mere LoadWordlist := Insert'
    if (!DatabaseRebuilt) {
       LearnedWordsTable := g_WordListDB.Query("SELECT wordlistmodified, wordlistsize FROM Wordlists WHERE wordlist = '" . WordlistFileName . "';")
       
@@ -60,6 +64,7 @@ ReadWordList()
       LoadWordlist := "Insert"
    }
    
+   ;_4. Read from multiple predefined wordlists. I have none, so far.
    if (LoadWordlist) {
       Progress, M, Please wait..., Loading wordlist, %g_ScriptTitle%
       g_WordListDB.BeginTransaction()
@@ -78,6 +83,7 @@ ReadWordList()
             Progress, %ProgressPercent%
             OldProgressPercent := ProgressPercent
          }
+         /*  AlexF - I do not have this legacy/old files with ';LEARNEDWORDS;'
          IfEqual, A_LoopField, `;LEARNEDWORDS`;
          {
             if (DatabaseRebuilt)
@@ -90,6 +96,9 @@ ReadWordList()
          } else {
             AddWordToList(A_LoopField,0,"ForceLearn",LearnedWordsCount)
          }
+         */
+         LearnedWordCountValue := 1 ;AlexF added this line -- don't know whether it makes sense. This step _4 is not exercised in my settings.
+         AddWordToList(A_LoopField,0,LearnedWordCountValue)
       }
       ParseWords =
       g_WordListDB.EndTransaction()
@@ -103,14 +112,15 @@ ReadWordList()
       
    }
    
+   ;_5. Read words and counts from the backup, 'WordlistLearned.csv'
    if (DatabaseRebuilt)
    {
       Progress, M, Please wait..., Converting learned words, %g_ScriptTitle%
     
-      ;Force LearnedWordsCount to 0 if not already set as we are now processing Learned Words
-      IfEqual, LearnedWordsCount,
+      ;Force LearnedWordCountValue to 0 if not already set as we are now processing Learned Words
+      IfEqual, LearnedWordCountValue,
       {
-         LearnedWordsCount=0
+         LearnedWordCountValue=0
       }
       
       g_WordListDB.BeginTransaction()
@@ -120,7 +130,7 @@ ReadWordList()
          Loop, Parse, WordsAndCounts, `n, `r
          {
             wordAndCount := StrSplit(A_LoopField, ",") 
-            AddWordToList(wordAndCount[1] ,0,"ForceLearn", wordAndCount[2])
+            AddWordToList(wordAndCount[1] ,0, wordAndCount[2])
          }
          WordsAndCounts =
       } else {
@@ -129,7 +139,7 @@ ReadWordList()
          Loop, Parse, ParseWords, `n, `r
          {
             
-            AddWordToList(A_LoopField,0,"ForceLearn",LearnedWordsCount)
+            AddWordToList(A_LoopField,0,LearnedWordCountValue)
          }
          ParseWords =
       }
@@ -139,7 +149,7 @@ ReadWordList()
 
       if(!alexF_config_BackupWordsAndCounts) {
          ;reverse the numbers of the word counts in memory
-         ReverseWordNums(LearnedWordsCount)
+         ReverseWordNums(LearnedWordCountValue)
       }
       
       g_WordListDB.Query("INSERT INTO LastState VALUES ('tableConverted','1',NULL);")
@@ -159,13 +169,13 @@ ReadWordList()
 ;       according to the inverse order as the words are listed in WordlistLearned.txt.
 ;       (They are ordered by frequency in WordlistLearned.txt, and this their *relative* frequencies are
 ;       imitated). I SHOULD MAKE SURE NOT TO USE IT, because I will store actual frequencies.
-ReverseWordNums(LearnedWordsCount)
+ReverseWordNums(LearnedWordCountValue)
 {
    ; This function will reverse the read numbers since now we know the total number of words
    global prefs_LearnCount
    global g_WordListDB
 
-   LearnedWordsCount+= (prefs_LearnCount - 1)
+   LearnedWordCountValue+= (prefs_LearnCount - 1)
 
    ; AlexF: table of learned words only
    LearnedWordsTable := g_WordListDB.Query("SELECT word FROM Words WHERE count IS NOT NULL;")
@@ -176,7 +186,7 @@ ReverseWordNums(LearnedWordsCount)
       SearchValue := row[1]
       StringReplace, SearchValueEscaped, SearchValue, ', '', All
       WhereQuery := "WHERE word = '" . SearchValueEscaped . "'"
-      g_WordListDB.Query("UPDATE words SET count = (SELECT " . LearnedWordsCount . " - count FROM words " . WhereQuery . ") " . WhereQuery . ";")
+      g_WordListDB.Query("UPDATE words SET count = (SELECT " . LearnedWordCountValue . " - count FROM words " . WhereQuery . ") " . WhereQuery . ";")
    }
    g_WordListDB.EndTransaction()
 
@@ -187,12 +197,12 @@ ReverseWordNums(LearnedWordsCount)
 ;------------------------------------------------------------------------
 
 ; AlexF  Adds word to the database (or increases count of the existing word), if appropriate
-AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCount = false)
+AddWordToList(AddWord,ForceCountNewOnly, LearnedWordCountValue=0)
 {
    ;AddWord = Word to add to the list
-   ;ForceCountNewOnly = force this word to be permanently learned even if learnmode is off
-   ;ForceLearn = disables some checks in CheckValid
-   ;LearnedWordsCount = if this is a stored learned word, this will only have a value when LearnedWords are read in from the wordlist
+   ;ForceCountNewOnly = force this word to be permanently learned even if learnmode is off (because of prefs_EndWordCharacters)
+   ;ForceLearn = disables some checks in CheckValid - this parameter is ignored removed by AlexF.
+   ;LearnedWordCountValue = will be non-zero only when words are read in from the backup "WordlistLearned.csv"
    global prefs_DoNotLearnStrings
    global prefs_ForceNewWordCharacters
    global prefs_LearnCount
@@ -201,107 +211,53 @@ AddWordToList(AddWord,ForceCountNewOnly,ForceLearn=false, ByRef LearnedWordsCoun
    global g_WordListDone
    global g_WordListDB
    
-   if !(LearnedWordsCount) {
-      StringSplit, SplitAddWord, AddWord, |
-      
-      IfEqual, SplitAddWord2, D ; AlexF if there is a Definition. I won't need it.
-      {
-         AddWordDescription := SplitAddWord3
-         AddWord := SplitAddWord1
-         IfEqual, SplitAddWord4, R ; AlexF if there is a Replacement. I won't need it.
-         {
-            AddWordReplacement := SplitAddWord5
-         }
-      } else IfEqual, SplitAddword2, R ; AlexF if there is a Replacement. I won't need it.
-      {
-         AddWordReplacement := SplitAddWord3
-         AddWord := SplitAddWord1
-         IfEqual, SplitAddWord4, D ; AlexF if there is a Definition. I won't need it.
-         {
-            AddWordDescription := SplitAddWord5
-         }
-      }
-   }
-         
-   if !(CheckValid(AddWord,ForceLearn))
+   if !(CheckValid(AddWord))
       return
    
-   TransformWord(AddWord, AddWordReplacement, AddWordDescription, AddWordTransformed, AddWordIndexTransformed, AddWordReplacementTransformed, AddWordDescriptionTransformed)
+   TransformWord(AddWord, AddWordTransformed, AddWordIndexTransformed)
 
-   IfEqual, g_WordListDone, 0 ;if this is read from the wordlist
+   IfEqual, g_WordListDone, 0 ;if this is read from the wordlist, AlexF expects LearnedWordCountValue > 0
    {
-      IfNotEqual,LearnedWordsCount,  ;if this is a stored learned word, this will only have a value when LearnedWords are read in from the wordlist
-      {
-         ; must update wordreplacement since SQLLite3 considers nulls unique
-         g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . LearnedWordsCount++ . "','');")
-      } else {
-         if (AddWordReplacement)
-         {
-            WordReplacementQuery := "'" . AddWordReplacementTransformed . "'"
-         } else {
-            WordReplacementQuery := "''"
-         }
-         
-         if (AddWordDescription)
-         {
-            WordDescriptionQuery := "'" . AddWordDescriptionTransformed . "'"
-         } else {
-            WordDescriptionQuery := "NULL"
-         }
-         g_WordListDB.Query("INSERT INTO words (wordindexed, word, worddescription, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "'," . WordDescriptionQuery . "," . WordReplacementQuery . ");")
-      }
+      ; must update wordreplacement since SQLLite3 considers nulls unique
+      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . LearnedWordCountValue . "','');")
+
+      Return
+   } 
+   
+   if (!InStr(prefs_LearnMode, "On")) {
+      Return
+   }
+   
+   ; This is an on-the-fly learned word
+   AddWordInList := g_WordListDB.Query("SELECT * FROM words WHERE word = '" . AddWordTransformed . "';")
+   
+   IF !( AddWordInList.Count() > 0 ) ; if the word is not in the list
+   {
+   
+      IF (StrLen(AddWord) < prefs_LearnLength) ; don't add the word if it's not longer than the minimum length for learning
+         Return
       
-   } else if (InStr(prefs_LearnMode, "On") || ForceCountNewOnly == 1)
-   { 
-      ; If this is an on-the-fly learned word
-      AddWordInList := g_WordListDB.Query("SELECT * FROM words WHERE word = '" . AddWordTransformed . "';")
-      
-      IF !( AddWordInList.Count() > 0 ) ; if the word is not in the list
-      {
-      
-         IfNotEqual, ForceCountNewOnly, 1
-         {
-            IF (StrLen(AddWord) < prefs_LearnLength) ; don't add the word if it's not longer than the minimum length for learning if we aren't force learning it
-               Return
+      if AddWord contains %prefs_ForceNewWordCharacters%
+         Return
             
-            if AddWord contains %prefs_ForceNewWordCharacters%
-               Return
-                  
-            if AddWord contains %prefs_DoNotLearnStrings%
-               Return
-                  
-            CountValue = 1
-                  
-         } else {
-            CountValue := prefs_LearnCount ;set the count to LearnCount so it gets written to the file
-         }
-         
-         ; must update wordreplacement since SQLLite3 considers nulls unique
-         g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . CountValue . "','');")
-      } else if(InStr(prefs_LearnMode, "On"))
-      {
-         IfEqual, ForceCountNewOnly, 1                     
-         {
-            For each, row in AddWordInList.Rows
-            {
-               CountValue := row[3]
-               break
-            }
+      if AddWord contains %prefs_DoNotLearnStrings%
+         Return
+            
+      CountValue = 1
                
-            IF ( CountValue < prefs_LearnCount )
-            {
-               g_WordListDB.QUERY("UPDATE words SET count = ('" . prefs_LearnCount . "') WHERE word = '" . AddWordTransformed . "');")
-            }
-         } else {
-            UpdateWordCount(AddWord,0) ;Increment the word count if it's already in the list and we aren't forcing it on
-         }
-      }
+      
+      ; must update wordreplacement since SQLLite3 considers nulls unique
+      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, wordreplacement) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . CountValue . "','');")
+   } else
+   {
+      UpdateWordCount(AddWord,0) ;Increment the word count if it's already in the list and we aren't forcing it on
    }
    
    Return
 }
 
-CheckValid(Word,ForceLearn=false)
+;AlexF returns 1 if the word is valid for adding to the database.
+CheckValid(Word)
 {
    
    Ifequal, Word,  ;If we have no word to add, skip out.
@@ -320,6 +276,8 @@ CheckValid(Word,ForceLearn=false)
       Return
    }
    
+   /* AlexF: I decided not to support this check. I also will remove 'ForceLearn' from AddWordToList().
+   
    ;Anything below this line should not be checked if we want to Force Learning the word (Ctrl-Shift-C or coming from wordlist.txt)
    If ForceLearn
       Return, 1
@@ -327,19 +285,24 @@ CheckValid(Word,ForceLearn=false)
    ;if Word does not contain at least one alpha character, skip out.
    IfEqual, A_IsUnicode, 1
    {
-      if ( RegExMatch(Word, "S)\pL") = 0 )  
+      if ( RegExMatch(Word, "S)\pL") = 0 ) ; AlexF: white space (S followed by letter \pL not found
       {
          return
       }
-   } else if ( RegExMatch(Word, "S)[a-zA-Zà-öø-ÿÀ-ÖØ-ß]") = 0 )
+   } else if ( RegExMatch(Word, "S)[a-zA-Zà-öø-ÿÀ-ÖØ-ß]") = 0 ) ; AlexF: not found
    {
       Return
    }
+   */
    
    Return, 1
 }
 
-TransformWord(AddWord, AddWordReplacement, AddWordDescription, ByRef AddWordTransformed, ByRef AddWordIndexTransformed, ByRef AddWordReplacementTransformed, ByRef AddWordDescriptionTransformed)
+;AlexF. 
+; AddWord - input, original word
+; AddWordTransformed - output, same word, with replacement ' => ''
+; AddWordIndexTransformed - output, same word, normalized, capitalized and with replacement ' => ''
+TransformWord(AddWord, ByRef AddWordTransformed, ByRef AddWordIndexTransformed)
 {
    AddWordIndex := AddWord
    
@@ -350,12 +313,6 @@ TransformWord(AddWord, AddWordReplacement, AddWordDescription, ByRef AddWordTran
    
    StringReplace, AddWordTransformed, AddWord, ', '', All
    StringReplace, AddWordIndexTransformed, AddWordIndex, ', '', All
-   if (AddWordReplacement) {
-      StringReplace, AddWordReplacementTransformed, AddWordReplacement, ', '', All
-   }
-   if (AddWordDescription) {
-      StringReplace, AddWordDescriptionTransformed, AddWordDescription, ', '', All
-   }
 }
 
 DeleteWordFromList(DeleteWord)
@@ -453,6 +410,7 @@ MaybeUpdateWordlist()
          
          FileDelete, %A_ScriptDir%\Temp_WordlistLearned.txt
          
+      /*  AlexF - I do not have this legacy/old files with ';LEARNEDWORDS;'
          ; Convert the Old Wordlist file to not have ;LEARNEDWORDS;
          IfEqual, g_LegacyLearnedWords, 1
          {
@@ -466,6 +424,7 @@ MaybeUpdateWordlist()
             FileCopy, %A_ScriptDir%\Temp_Wordlist.txt, %A_ScriptDir%\Wordlist.txt, 1
             FileDelete, %A_ScriptDir%\Temp_Wordlist.txt
          }   
+      */
       }
    }
    

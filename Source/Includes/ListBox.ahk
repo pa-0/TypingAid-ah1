@@ -344,21 +344,12 @@ RebuildMatchList()
    
    g_OriginalMatchStart := g_MatchStart
    
-   MaxLength := ComputeListBoxMaxLength()
-   HalfLength := Round(MaxLength/2)
-   
-   ; Preliminary (?) estimate LongestBaseLength
-   Loop, %g_MatchTotal%
-   {
-      CurrentLength := AddToMatchList(A_Index, MaxLength, HalfLength, 0, true)
-      IfGreater, CurrentLength, %LongestBaseLength%
-         LongestBaseLength := CurrentLength      
-   }
+   MaxLength := ComputeListBoxMaxLength() ; AlexF: max count of characters (approximately?) to fit width of listbox
    
    ; Actually fill out the listbox
    Loop, %g_MatchTotal%
    {
-      CurrentLength := AddToMatchList(A_Index, MaxLength, HalfLength, LongestBaseLength, false)
+      CurrentLength := AddToMatchList(A_Index, MaxLength, LongestBaseLength)
       IfGreater, CurrentLength, %g_MatchLongestLength%
          g_MatchLongestLength := CurrentLength      
    }
@@ -368,21 +359,17 @@ RebuildMatchList()
 
 ;AlexF 
 ; Upends g_Match - a string of all the matches - with word at given position. 
-; If (ComputeBaseLengthOnly), does not actually adds the word, only calculates the line width.
 ;   position - index of matched word in g_SingleMatch
-;   MaxLength - max count of characters in the matched words (approximately? +spaces?)
-;   HalfLength - related to description and replacement, not interesting for me.
+;   MaxLength - max count of characters (approximately?) to fit width of listbox
 ;   LongestBaseLength - max count of characters in the matched words
 ; Returns number of characters (width) of the added line (I guess).
-AddToMatchList(position, MaxLength, HalfLength, LongestBaseLength, ComputeBaseLengthOnly)
+AddToMatchList(position, MaxLength, LongestBaseLength)
 {
    global g_DelimiterChar
    global g_Match                ;AlexF output, concatenation of all the lines in the listbox, separated by g_DelimiterChar
    global g_MatchStart           ;AlexF position of the first word (match) to be shown in the listbox
    global g_NumKeyMethod
    global g_SingleMatch          ;AlexF array of matched words
-   global g_SingleMatchDescription
-   global g_SingleMatchReplacement
    global prefs_ListBoxFontFixed
    
    blankprefix = `t
@@ -403,17 +390,7 @@ AddToMatchList(position, MaxLength, HalfLength, LongestBaseLength, ComputeBaseLe
    prefixlen := 2
    
    CurrentMatch := g_SingleMatch[position]
-   if (g_SingleMatchReplacement[position] || g_SingleMatchDescription[position])
-   {
-      AdditionalDataExists := true
-      BaseLength := HalfLength
-   } else if (ComputeBaseLengthOnly) {
-      ; we don't need to compute the base length if there
-      ; is no Replacement or Description
-      Return, 0
-   } else {
-      BaseLength := MaxLength
-   }
+   BaseLength := MaxLength
    
    CurrentMatchLength := StrLen(CurrentMatch) + prefixlen
    
@@ -427,56 +404,9 @@ AddToMatchList(position, MaxLength, HalfLength, LongestBaseLength, ComputeBaseLe
       CurrentMatchLength := StrLen(CurrentMatch) + prefixlen
    }
    
-   if (ComputeBaseLengthOnly)
-   {
-      Return, CurrentMatchLength
-   }
-   
    Iterations := 0
    Tabs = 
    Remainder := 0
-   
-   ; AlexF -- adding 2nd and 3rd columns to the list, not interesting for me
-   if (AdditionalDataExists) 
-   {
-      if (g_SingleMatchReplacement[position])
-      {
-         CurrentMatch .= " " . chr(26) . " " . g_SingleMatchReplacement[position]
-      }
-      if (g_SingleMatchDescription[position])
-      {
-         ;;CurrentMatch .= "|" . g_SingleMatchDescription[position]
-         IfEqual, prefs_ListBoxFontFixed, On
-         {
-            Iterations := Ceil(LongestBaseLength/8) - Floor((strlen(CurrentMatch) + prefixlen)/8)
-         
-            Remainder := Mod(strlen(CurrentMatch) + prefixlen, 8)
-         
-            Loop, %Iterations%
-            {
-               Tabs .= Chr(9)
-            }
-         } else {
-            Iterations := 1
-            Remainder := 0
-            Tabs := Chr(9)
-         }
-         
-         CurrentMatch .= Tabs . "|" . g_SingleMatchDescription[position]
-      }
-         
-      CurrentMatchLength := strlen(CurrentMatch) + prefixlen - strlen(Tabs) + (Iterations * 8) - Remainder
-      
-      ;MaxLength - prefix length to make room for prefix
-      if (CurrentMatchLength > MaxLength)
-      {
-         CompensatedMaxLength := MaxLength - prefixlen + strlen(Tabs) - (Iterations * 8) + Remainder
-         ; remove 3 characters so we can add the ellipsis
-         StringLeft, CurrentMatch, CurrentMatch, CompensatedMaxLength - 3
-         CurrentMatch .= "..."
-         CurrentMatchLength := strlen(CurrentMatch) + prefixlen - strlen(Tabs) + (Iterations * 8) - Remainder
-      }
-   }
    
    g_Match .= prefix . CurrentMatch
    
@@ -486,12 +416,13 @@ AddToMatchList(position, MaxLength, HalfLength, LongestBaseLength, ComputeBaseLe
 
 ;------------------------------------------------------------------------
 
-; find out the longest length we can use in the listbox
+; AlexF: this is for WIDTH of the listbox in CHARACTERS, not HEIGHT in rows
+; find out the longest length we can use in the listbox.
 ; Any changes to this function probably need to be reflected in ShowListBox() or ForceWithinMonitorBounds
 ComputeListBoxMaxLength()
 {
-   global g_ListBoxCharacterWidthComputed
-   global g_MatchTotal
+   global g_ListBoxCharacterWidthComputed ;AlexF average width of one character, pixels
+   global g_MatchTotal ; AlexF: number of matches
    global g_SM_CMONITORS
    global g_SM_CXFOCUSBORDER
    global g_SM_CXVSCROLL
@@ -499,7 +430,7 @@ ComputeListBoxMaxLength()
    
    ; grab the width of a vertical scrollbar
 
-   Rows := GetRows()
+   Rows := GetRows() ; AlexF: number of rows
    
    IfGreater, g_MatchTotal, %Rows%
    {
@@ -513,7 +444,7 @@ ComputeListBoxMaxLength()
    If BorderWidthX is not integer
       BorderWidthX = 1
    
-   ;Use 8 pixels for each character in width
+   ;Use g_ListBoxCharacterWidthComputed pixels for each character in width
    ListBoxBaseSizeX := g_ListBoxCharacterWidthComputed + ScrollBarWidth + (BorderWidthX * 2)
    
    ListBoxPosX := HCaretX()
@@ -683,7 +614,7 @@ ForceWithinMonitorBounds(ByRef ListBoxPosX,ByRef ListBoxPosY,ListBoxActualSizeW,
 {
    global g_ListBoxFlipped
    global g_SM_CMONITORS
-   global g_ListBoxCharacterWidthComputed
+   global g_ListBoxCharacterWidthComputed ; AlexF average width of one character, pixels
    global g_ListBoxOffsetComputed
    global g_ListBoxMaxWordHeight
    ;Grab the number of non-dummy monitors

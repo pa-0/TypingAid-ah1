@@ -285,11 +285,11 @@ ProcessKey(InputChar,EndKey)
          AddWordToList(g_Word,0)
          ClearAllVars(true)
          g_Word := InputChar
-      } else if InputChar in %prefs_EndWordCharacters%
-      {
-         g_Word .= InputChar
-         AddWordToList(g_Word, 1)
-         ClearAllVars(true)
+      ; } else if InputChar in %prefs_EndWordCharacters% ; AlexF decided not to support this option
+      ; {
+         ; g_Word .= InputChar
+         ; AddWordToList(g_Word, 1)
+         ; ClearAllVars(true)
       } else { 
          g_Word .= InputChar
       }
@@ -1090,7 +1090,7 @@ AddSelectedWordToList()
    ClipWait, 0
    IfNotEqual, Clipboard, 
    {
-      AddWordToList(Clipboard,1,"ForceLearn")
+      AddWordToList(Clipboard,1)
    }
    Clipboard = %ClipboardSave%
 }
@@ -1267,6 +1267,7 @@ FileAppendDispatch(Text,FileName,ForceEncoding=0)
    Return
 }
 
+;AlexF: reads file and writes it again, with correct encoding.
 MaybeFixFileEncoding(File,Encoding)
 {
    IfGreaterOrEqual, A_AhkVersion, 1.0.90.0
