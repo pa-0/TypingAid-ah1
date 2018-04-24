@@ -109,7 +109,6 @@ ReadWordList()
       } else {
          g_WordListDB.Query("INSERT INTO Wordlists (wordlist, wordlistmodified, wordlistsize) VALUES ('" . WordlistFileName . "','" . WordlistModified . "','" . WordlistSize . "');")
       }
-      
    }
    
    ;_5. Read words and counts from the backup, 'WordlistLearned.csv'
@@ -197,7 +196,7 @@ ReverseWordNums(LearnedWordCountValue)
 ;------------------------------------------------------------------------
 
 ; AlexF  Adds word to the database (or increases count of the existing word), if appropriate
-AddWordToList(AddWord,ForceCountNewOnly, LearnedWordCountValue=0)
+AddWordToList(AddWordRaw,ForceCountNewOnly, LearnedWordCountValue=0)
 {
    ;AddWord = Word to add to the list
    ;ForceCountNewOnly = force this word to be permanently learned even if learnmode is off (because of prefs_EndWordCharacters)
@@ -211,8 +210,11 @@ AddWordToList(AddWord,ForceCountNewOnly, LearnedWordCountValue=0)
    global g_WordListDone
    global g_WordListDB
    
-   if !(CheckValid(AddWord))
+   if !(CheckValid(AddWordRaw))
       return
+   
+   ;AlexF. Before entering to the database, need to "normalize" capitalization
+   AddWord := AdjustCapitalization(AddWordRaw, "|firstCap|")
    
    TransformWord(AddWord, AddWordTransformed, AddWordIndexTransformed)
 
@@ -247,7 +249,7 @@ AddWordToList(AddWord,ForceCountNewOnly, LearnedWordCountValue=0)
       g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . CountValue . "');")
    } else
    {
-      UpdateWordCount(AddWord,0) ;Increment the word count if it's already in the list and we aren't forcing it on
+      UpdateWordCount(AddWord) ;Increment the word count if it's already in the list and we aren't forcing it on
    }
    
    Return
@@ -298,7 +300,7 @@ CheckValid(Word)
 ;AlexF. 
 ; AddWord - input, original word
 ; AddWordTransformed - output, same word, with substitution ' => ''
-; AddWordIndexTransformed - output, same word, normalized, capitalized and with substitution ' => ''
+; AddWordIndexTransformed - output, same word, with normalized 'accents', capitalized and with substitution ' => ''
 TransformWord(AddWord, ByRef AddWordTransformed, ByRef AddWordIndexTransformed)
 {
    AddWordIndex := AddWord
@@ -317,7 +319,7 @@ DeleteWordFromList(DeleteWord)
    global prefs_LearnMode
    global g_WordListDB
    
-   Ifequal, DeleteWord,  ;If we have no word to delete, skip out.
+   IfEqual, DeleteWord,  ;If we have no word to delete, skip out.
       Return
             
    if DeleteWord is space ;If DeleteWord is only whitespace, skip out.
@@ -334,20 +336,17 @@ DeleteWordFromList(DeleteWord)
 
 ;------------------------------------------------------------------------
 
-UpdateWordCount(word,SortOnly)
+;AlexF. Modifies count for one word in the database.
+UpdateWordCount(word)
 {
    global prefs_LearnMode
    global g_WordListDB
    ;Word = Word to increment count for
-   ;SortOnly = Only sort the words, don't increment the count
    
    ;Should only be called when LearnMode is on  
    IfEqual, prefs_LearnMode, Off
       Return
    
-   IfEqual, SortOnly, 
-      Return
-
    StringReplace, wordEscaped, word, ', '', All
    g_WordListDB.Query("UPDATE words SET count = count + 1 WHERE word = '" . wordEscaped . "';")
    
@@ -429,8 +428,45 @@ MaybeUpdateWordlist()
    
 }
 
-;AlexF added this function. Updates content of "WordlistLearned.csv" file,
-;      which includes learned words and their frequencies.
+;------------------------------------------------------------------------
+
+; Removes marks from letters.  Requires Windows Vista or later.
+; Code by Lexikos, based on MS documentation
+StrUnmark(string) {
+   global g_OSVersion
+   global g_NormalizationKD
+   if (g_OSVersion < 6.0)
+   {
+      return string
+   }
+   
+   len := DllCall("Normaliz.dll\NormalizeString", "int", g_NormalizationKD, "wstr", string, "int", StrLen(string), "ptr", 0, "int", 0)  ; Get *estimated* required buffer size.
+   Loop {
+      VarSetCapacity(buf, len * 2)
+      len := DllCall("Normaliz.dll\NormalizeString", "int", g_NormalizationKD, "wstr", string, "int", StrLen(string), "ptr", &buf, "int", len)
+      if len >= 0
+         break
+      if (A_LastError != 122) ; ERROR_INSUFFICIENT_BUFFER
+         return string
+      len *= -1  ; This is the new estimate.
+   }
+   ; Remove combining marks and return result.
+   string := RegExReplace(StrGet(&buf, len, "UTF-16"), "\pM")
+   
+   StringReplace, string, string, æ, ae, All
+   StringReplace, string, string, Æ, AE, All
+   StringReplace, string, string, œ, oe, All
+   StringReplace, string, string, Œ, OE, All
+   StringReplace, string, string, ß, ss, All   
+   
+   return, string  
+   
+}
+
+;----- Functions below are added by AlexF --------------------------------------
+
+; Updates content of "WordlistLearned.csv" file,
+; which includes learned words and their frequencies.
 MaybeUpdateWordAndCountTextFile()
 {
    global g_LegacyLearnedWords
@@ -468,37 +504,65 @@ MaybeUpdateWordAndCountTextFile()
    g_WordListDB.Close(),
 }
 
-;------------------------------------------------------------------------
-
-; Removes marks from letters.  Requires Windows Vista or later.
-; Code by Lexikos, based on MS documentation
-StrUnmark(string) {
-   global g_OSVersion
-   global g_NormalizationKD
-   if (g_OSVersion < 6.0)
-   {
-      return string
+; Returns "|allCaps|", "|firstCap|", "|allLow|" or "|custom|"
+GetCapitalization(Word) {
+   StringUpper, WordAllCaps, Word
+   
+   ; AlexF added: check capitalization
+   capitalization := "|custom|"
+   if (Word == WordAllCaps) {
+      capitalization := "|allCaps|"
+   } else {
+      suffix := SubStr(Word, 2) ; without first char
+      StringLower, suffixAllLower, suffix
+      if(suffix == suffixAllLower) {
+         if(SubStr(Word, 1, 1) == SubStr(WordAllCaps, 1, 1)) {
+            capitalization := "|firstCap|"
+         } else {
+            capitalization := "|allLow|"
+         }
+      }
    }
-   
-   len := DllCall("Normaliz.dll\NormalizeString", "int", g_NormalizationKD, "wstr", string, "int", StrLen(string), "ptr", 0, "int", 0)  ; Get *estimated* required buffer size.
-   Loop {
-      VarSetCapacity(buf, len * 2)
-      len := DllCall("Normaliz.dll\NormalizeString", "int", g_NormalizationKD, "wstr", string, "int", StrLen(string), "ptr", &buf, "int", len)
-      if len >= 0
-         break
-      if (A_LastError != 122) ; ERROR_INSUFFICIENT_BUFFER
-         return string
-      len *= -1  ; This is the new estimate.
-   }
-   ; Remove combining marks and return result.
-   string := RegExReplace(StrGet(&buf, len, "UTF-16"), "\pM")
-   
-   StringReplace, string, string, æ, ae, All
-   StringReplace, string, string, Æ, AE, All
-   StringReplace, string, string, œ, oe, All
-   StringReplace, string, string, Œ, OE, All
-   StringReplace, string, string, ß, ss, All   
-   
-   return, string  
-   
+   Return capitalization
 }
+
+; If Word is already has custom capitalization, does not modify it.
+; Changes Word to match targetCapitalization (can be "|allCaps|", "|firstCap|", "|allLow|", or "|custom|").
+; Otherwise, changes Word, so that its start is same as the shorter pattern (targetCapitalization)
+; and its tail is whatever it was.
+; Returns modified Word.
+AdjustCapitalization(Word, targetCapitalization, headPattern="") {
+   capitalization := GetCapitalization(Word) ; If Word is from database, can be only "|custom|" or "|firstCap|"; if from sendingToWnd, can be anything
+   
+   if(capitalization == "|custom|") {
+      Return Word
+   }
+
+   if(targetCapitalization == "|firstCap|") {
+      firstChar := SubStr(Word, 1, 1)
+      StringUpper, firstCharUpper, firstChar
+      tail := SubStr(Word, 2) ; without first char
+      StringLower, tailAllLower, tail
+      Return firstCharUpper . tailAllLower
+   }
+
+   if(targetCapitalization == "|allCaps|") {
+      StringUpper, WordAllCaps, Word
+      Return WordAllCaps
+   }
+
+   if(targetCapitalization == "|allLow|") {
+      StringLower, WordAllLower, Word
+      Return WordAllLower
+   }
+
+   if(targetCapitalization == "|custom|") {
+      AdjWord := headPattern . SubStr(Word, StrLen(headPattern) + 1)
+      Return AdjWord
+   }
+
+   
+   Return "Error in script. Word='" . Word . "'; targetCapitalization='" . targetCapitalization . "'."
+}
+
+

@@ -18,30 +18,29 @@ SendKey(Key)
 
 ;------------------------------------------------------------------------
 
-; AlexF - 'types' the word to the active window
+; AlexF - 'types' a word from  g_SingleMatchAdj to the active window. 
+;         The word is already in the database, and its count is updated.
+;         However, as now (04/22/2018) I may modify the word before sending, it may not be in tbe database.
 SendWord(WordIndex)
 {
-   global g_SingleMatch
-   global g_Word ; AlexF
-   global prefs_LearnMode ; AlexF
+   global g_SingleMatchAdj ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
+   global g_Word           ;AlexF word typed by user
+   global prefs_LearnMode  ;AlexF
    global alexF_config_OnAfterCompletion
    
-   ;Send the word
-   sending := g_SingleMatch[WordIndex]
+   sendingToWnd := g_SingleMatchAdj[WordIndex]
    ForceBackspace := false
-   
-   ; Update Typed Count
-   UpdateWordCount(sending,0)
-   SendFull(sending, ForceBackspace)
+   SendFull(sendingToWnd, ForceBackspace)
    
    if (prefs_LearnMode = alexF_config_OnAfterCompletion) { ; AlexF: case-insensitive comparison
-      g_Word := sending
+      g_Word := sendingToWnd
       RecomputeMatches()
    } else {
+      sendingToDb := AdjustCapitalization(sendingToWnd, "|firstCap|")
+      AddWordToList(sendingToDb, 0)
       ClearAllVars(true)
    }
 
-   
    Return
 }  
 

@@ -322,9 +322,9 @@ RecomputeMatches()
 {
    ; This function will take the given word, and will recompile the list of matches and redisplay the wordlist.
    global g_MatchTotal         ;AlexF count of matched words
-   global g_SingleMatch        ;AlexF array of matched words
-   global g_SingleMatchDescription
-   global g_Word
+   global g_SingleMatchDb      ;AlexF array of matched words, as they are stored in the database
+   global g_SingleMatchAdj     ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
+   global g_Word               ; AlexF word typed by user
    global g_WordListDB
    global prefs_ArrowKeyMethod
    global prefs_LearnMode
@@ -354,14 +354,17 @@ RecomputeMatches()
       }
    }
    
-   StringUpper, WordMatchOriginal, g_Word
+   StringUpper, WordAllCaps, g_Word
    
-   WordMatch := StrUnmark(WordMatchOriginal)
+   ; AlexF added: check capitalization
+   targetCapitalization := GetCapitalization(g_Word)
+   
+   WordMatch := StrUnmark(WordAllCaps) ;AlexF - redundant?
    
    StringUpper, WordMatch, WordMatch
    
    ; if a user typed an accented character, we should exact match on that accented character
-   if (WordMatch != WordMatchOriginal) {
+   if (WordMatch != WordAllCaps) {
       WordAccentQuery =
       LoopCount := StrLen(g_Word)
       Loop, %LoopCount%
@@ -417,7 +420,7 @@ RecomputeMatches()
       Normalize := 0
    }
    
-   ;_3. Second query - actually retrieve matches, in certain order (more frequent and longer words first)
+   ;_3. Second query - actually retrieve matches, in certain order (was: more frequent and longer words first, AlexF changed)
    if (alexF_config_OrderByLength) {
       OrderByQuery := " ORDER BY LENGTH(word)"
    } else {
@@ -430,26 +433,29 @@ RecomputeMatches()
          OrderByQuery .= "ROWID else 'z'"
       }
       ;AlexF (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words
-      OrderByQuery .= " end, CASE WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - " . WordLen . ")))) end DESC, Word"
+      OrderByQuery .= " end, CASE WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - "
+      OrderByQuery .=  WordLen . ")))) end DESC, Word"
    }
    ;AlexF table of matched words
    query := "SELECT word FROM Words" 
    query .= WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";"
    Matches := g_WordListDB.Query(query)
    
-   g_SingleMatch := Object() ;AlexF -- array of matched words
-   
+   g_SingleMatchDb := Object()
+   g_SingleMatchAdj := Object()
    for each, row in Matches.Rows
    {      
   
       oldLength := StrLen(row[1])
       VarSetCapacity(word, oldLength + 12, 0) ;AlexF added. 12 bytes, just in case. They say, for Unicode 2 bytes per char is enough. Apparently, they are not using UTF-8 here?
-      word := row[1]
-  
+      
+      g_SingleMatchDb[++g_MatchTotal] := row[1]
+      ; If row[1] has "normal" capitalization ("|firstCap|"), it will be adjusted to match word.
+      word := AdjustCapitalization(row[1], targetCapitalization, g_Word)
+      g_SingleMatchAdj[g_MatchTotal] := word
+
 ; AlexF  - Works:     DllCall("TAHelperU64.dll\AddEllipses1", "Str", word)
 ;      MsgBox % "Converted '" . row[1] . "' of length " . oldLength . " to '" . word . "' of length " . StrLen(word) . ". ErrorLevel: " . ErrorLevel
-
-      g_SingleMatch[++g_MatchTotal] := word ; row[1]
       
       continue
    }
@@ -492,7 +498,7 @@ RecomputeMatches()
    Loop % g_MatchTotal
    {
       index += 1
-      word%index% := g_SingleMatch[index]
+      word%index% := g_SingleMatchAdj[index]
       NumPut(&(word%index%), &strings, (index - 1) * A_PtrSize)
    }
    DllCall("TAHelperU64.dll\AddEllipses", "Ptr", &strings, "Int", g_MatchTotal)
@@ -735,14 +741,14 @@ HandleEscapeKey()
    Return
 }
 
-; If hotkey was pressed, check wether there's a match going on and send it, otherwise send the number(s) typed 
+; If hotkey was pressed, check whether there's a match going on and send it, otherwise send the number(s) typed 
 CheckWord(Key)
 {
    global g_ListBox_Id
    global g_Match          ;AlexF input, concatenation of all the lines in the listbox, separated by g_DelimiterChar
    global g_MatchStart     ;AlexF position of the first word (match) to be shown in the listbox
    global g_NumKeyMethod
-   global g_SingleMatch
+   global g_SingleMatchAdj
    global g_Word
    global prefs_ListBoxRows
    global prefs_NumPresses
@@ -798,7 +804,7 @@ CheckWord(Key)
       }
    }
 
-   ifequal, g_Word,        ; only continue if g_word is not empty 
+   ifEqual, g_Word,        ; only continue if g_word is not empty 
    { 
       SendCompatible(Key,0)
       ProcessKey(Key,"")
@@ -807,7 +813,7 @@ CheckWord(Key)
       Return 
    }
       
-   if ( ( (WordIndex + 1 - MatchStart) > prefs_ListBoxRows) || ( g_Match = "" ) || (g_SingleMatch[WordIndex] = "") )   ; only continue g_SingleMatch is not empty 
+   if ( ( (WordIndex + 1 - MatchStart) > prefs_ListBoxRows) || ( g_Match = "" ) || (g_SingleMatchAdj[WordIndex] = "") )   ; only continue if g_SingleMatchAdj is not empty 
    { 
       SendCompatible(Key,0)
       ProcessKey(Key,"")
@@ -871,7 +877,7 @@ CheckWord(Key)
       } 
    }
 
-   SendWord(WordIndex)
+   SendWord(WordIndex) ;AlexF. Type the word after numeric key was pressed. I am not using this (yet).
    IfEqual, prefs_NumPresses, 2
       SuspendOff()
    Return 
@@ -888,7 +894,7 @@ EvaluateUpDown(Key)
    global g_MatchStart       ;AlexF position of the first word (match) to be shown in the listbox
    global g_MatchTotal
    global g_OriginalMatchStart
-   global g_SingleMatch
+   global g_SingleMatchAdj
    global g_Word
    global prefs_ArrowKeyMethod
    global prefs_DisabledAutoCompleteKeys
@@ -969,7 +975,7 @@ EvaluateUpDown(Key)
          Return     
       }
       
-      if (g_SingleMatch[g_MatchPos] = "") ;only continue if g_SingleMatch is not empty
+      if (g_SingleMatchAdj[g_MatchPos] = "") ;only continue if g_SingleMatchAdj is not empty
       {
          SendKey(Key)
          g_MatchPos := g_MatchTotal
@@ -1093,15 +1099,15 @@ AddSelectedWordToList()
 DeleteSelectedWordFromList()
 {
    global g_MatchPos
-   global g_SingleMatch
+   global g_SingleMatchDb    ;AlexF array of matched words, as they are stored in the database
    global prefs_ArrowKeyMethod ; AlexF
 
-   if !(g_SingleMatch[g_MatchPos] = "") ;only continue if g_SingleMatch is not empty
+   if !(g_SingleMatchDb[g_MatchPos] = "") ;only continue if g_SingleMatchDb is not empty
    {
       alexF := prefs_ArrowKeyMethod
       prefs_ArrowKeyMethod := "LastPosition"
       
-      DeleteWordFromList(g_SingleMatch[g_MatchPos])
+      DeleteWordFromList(g_SingleMatchDb[g_MatchPos])
       RecomputeMatches()
       
       prefs_ArrowKeyMethod := alexF
@@ -1231,7 +1237,8 @@ ClearAllVars(ClearWord)
       g_ListBoxMaxWordHeight=
    }
    
-   g_SingleMatch =
+   g_SingleMatchDb =
+   g_SingleMatchAdj =
    g_Match= 
    g_MatchPos=
    g_MatchStart= 

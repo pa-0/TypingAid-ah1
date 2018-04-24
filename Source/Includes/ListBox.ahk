@@ -218,7 +218,7 @@ SavePriorMatchPosition()
    global g_MatchStart       ;AlexF position of the first word (match) to be shown in the listbox
    global g_OldMatch         ;AlexF either last highlighted word or last highlighted position in the listbox, depending on prefs_ArrowKeyMethod
    global g_OldMatchStart
-   global g_SingleMatch
+   global g_SingleMatchAdj   ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
    global prefs_ArrowKeyMethod
    
    if !(g_MatchPos)
@@ -227,7 +227,7 @@ SavePriorMatchPosition()
       g_OldMatchStart = 
    } else IfEqual, prefs_ArrowKeyMethod, LastWord
    {
-      g_OldMatch := g_SingleMatch[g_MatchPos]
+      g_OldMatch := g_SingleMatchAdj[g_MatchPos]
       g_OldMatchStart = 
    } else IfEqual, prefs_ArrowKeyMethod, LastPosition
    {
@@ -250,7 +250,7 @@ SetupMatchPosition()
    global g_MatchTotal       ;AlexF count of matched words
    global g_OldMatch         ;AlexF either last highlighted word or last highlighted position in the listbox, depending on prefs_ArrowKeyMethod
    global g_OldMatchStart
-   global g_SingleMatch      ;AlexF array of matched words
+   global g_SingleMatchAdj   ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
    global prefs_ArrowKeyMethod
    global prefs_ListBoxRows
    
@@ -292,7 +292,7 @@ SetupMatchPosition()
       ListPosition =
       Loop, %g_MatchTotal%
       {
-         if ( g_OldMatch == g_SingleMatch[A_Index] )
+         if ( g_OldMatch == g_SingleMatchAdj[A_Index] )
          {
             ListPosition := A_Index
             Break
@@ -359,7 +359,7 @@ RebuildMatchList()
 
 ;AlexF 
 ; Upends g_Match - a string of all the matches - with word at given position. 
-;   position - index of matched word in g_SingleMatch
+;   position - index of matched word in g_SingleMatchAdj
 ;   MaxLength - max count of characters (approximately?) to fit width of listbox
 ;   LongestBaseLength - max count of characters in the matched words
 ; Returns number of characters (width) of the added line (I guess).
@@ -369,7 +369,7 @@ AddToMatchList(position, MaxLength, LongestBaseLength)
    global g_Match                ;AlexF output, concatenation of all the lines in the listbox, separated by g_DelimiterChar
    global g_MatchStart           ;AlexF position of the first word (match) to be shown in the listbox
    global g_NumKeyMethod
-   global g_SingleMatch          ;AlexF array of matched words
+   global g_SingleMatchAdj       ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
    global prefs_ListBoxFontFixed
    
    blankprefix = `t
@@ -389,7 +389,7 @@ AddToMatchList(position, MaxLength, LongestBaseLength)
    
    prefixlen := 2
    
-   CurrentMatch := g_SingleMatch[position]
+   CurrentMatch := g_SingleMatchAdj[position]
    BaseLength := MaxLength
    
    CurrentMatchLength := StrLen(CurrentMatch) + prefixlen

@@ -21,3 +21,5 @@ TAHelper/x64
 *.sln
 *.obj
 /Source/Keyboard warning.PNG
+/Source/WordlistLearned_back.csv
+/Source/WordlistLearned.csv.xlsx
