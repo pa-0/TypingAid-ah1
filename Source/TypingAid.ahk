@@ -49,6 +49,10 @@ SetTitleMatchMode, 2
 alexF_config_PreventScrollbar := true
 alexF_config_OnAfterCompletion := "On also after completion"
 alexF_config_OrderByLength := true
+alexF_config_GroupSimilarWords := true ; This supersedes alexF_config_OrderByLength
+alexF_config_MinDeltaLength := 2
+alexF_config_Ellipsis := Chr(0x2026)
+
 alexF_config_PreventScrollbar := true
 alexF_config_BackupWordsAndCounts := true
 
@@ -322,7 +326,7 @@ RecomputeMatches()
 {
    ; This function will take the given word, and will recompile the list of matches and redisplay the wordlist.
    global g_MatchTotal         ;AlexF count of matched words
-   global g_SingleMatchDb      ;AlexF array of matched words, as they are stored in the database
+   global g_SingleMatchDb      ;AlexF array of matched words, as they are stored in the database. Used for deleting only.
    global g_SingleMatchAdj     ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
    global g_Word               ; AlexF word typed by user
    global g_WordListDB
@@ -334,6 +338,9 @@ RecomputeMatches()
    global prefs_SuppressMatchingWord
    global alexF_config_OrderByLength
    global alexF_config_PreventScrollbar
+   global alexF_config_GroupSimilarWords
+   global alexF_config_MinDeltaLength
+   
    
    SavePriorMatchPosition()
 
@@ -347,7 +354,9 @@ RecomputeMatches()
          LimitTotalMatches := prefs_ListBoxRows
       else LimitTotalMatches = 10
    } else {
-      if (alexF_config_PreventScrollbar) {
+      if(alexF_config_GroupSimilarWords) {
+         LimitTotalMatches = 200
+      } else if (alexF_config_PreventScrollbar) {
          LimitTotalMatches := prefs_ListBoxRows
       } else {
          LimitTotalMatches = 200
@@ -385,7 +394,8 @@ RecomputeMatches()
             ; because SQLite cannot do case-insensitivity on accented characters using LIKE, we need
             ; to handle it manually, so we need 2 searches for each accented character the user typed.
             ;GLOB is used for consistency with the wordindexed search.
-            WordAccentQuery .= " AND (word GLOB '" . PrefixChars . SubCharUpperEscaped . "*' OR word GLOB '" . PrefixChars . SubCharLowerEscaped . "*')"
+            WordAccentQuery .= " AND (word GLOB '" . PrefixChars . SubCharUpperEscaped . "*' OR word GLOB '"
+            WordAccentQuery .= PrefixChars . SubCharLowerEscaped . "*')"
          }         
       }
    } else {
@@ -405,59 +415,52 @@ RecomputeMatches()
             }
    }
    
-   ;_2. First query - just find minimal frequency of matched words ('Normalize')
+   ;_2. First query - just find minimal frequency of matched words ('Normalize') 
+   ; to retrieve more frequent and longer words first- AlexF removed 
    WhereQuery := " WHERE wordindexed GLOB '" . WordMatchEscaped . "*' " . SuppressMatchingWordQuery . WordAccentQuery
-   ;AlexF one-column, one-row table with minimum of counts of occurrences of first 'LimitTotalMatches' learned words.
-   NormalizeTable := g_WordListDB.Query("SELECT MIN(count) AS normalize FROM Words" . WhereQuery . "AND count IS NOT NULL LIMIT " . LimitTotalMatches . ";")
    
-   for each, row in NormalizeTable.Rows
-   {
-      Normalize := row[1]
-   }
-      
-   IfEqual, Normalize,
-   {
-      Normalize := 0
-   }
-   
-   ;_3. Second query - actually retrieve matches, in certain order (was: more frequent and longer words first, AlexF changed)
-   if (alexF_config_OrderByLength) {
+   ;_3. Second query - actually retrieve matches, in certain order
+   if (alexF_config_GroupSimilarWords) {
+      typedLength := StrLen(g_word)
+      ;WhereQuery .= " AND LENGTH(word) > " . (typedLength - 1 + alexF_config_MinDeltaLength)  ;TODO reconcile with min word length? Think!!
+      WhereQuery .= " AND LENGTH(word) > " . typedLength  
+      OrderByQuery := " ORDER BY word ASC" ; order alphabetically, case-sensitive.
+  } else if (alexF_config_OrderByLength) { 
       OrderByQuery := " ORDER BY LENGTH(word)"
-   } else {
-      WordLen := StrLen(g_Word)
-      OrderByQuery := " ORDER BY CASE WHEN count IS NULL then "
-      IfEqual, prefs_ShowLearnedFirst, On
-      {
-         OrderByQuery .= "ROWID + 1 else 0"
-      } else {
-         OrderByQuery .= "ROWID else 'z'"
-      }
-      ;AlexF (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words
-      OrderByQuery .= " end, CASE WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - "
-      OrderByQuery .=  WordLen . ")))) end DESC, Word"
-   }
-   ;AlexF table of matched words
+  } else {
+      MsgBox % "Error. Missing setting to display matches."
+      Return
+  }
+
+
+   ;AlexF 1-column table of matched words
    query := "SELECT word FROM Words" 
    query .= WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";"
    Matches := g_WordListDB.Query(query)
    
-   g_SingleMatchDb := Object()
-   g_SingleMatchAdj := Object()
-   for each, row in Matches.Rows
-   {      
-  
-      oldLength := StrLen(row[1])
-      VarSetCapacity(word, oldLength + 12, 0) ;AlexF added. 12 bytes, just in case. They say, for Unicode 2 bytes per char is enough. Apparently, they are not using UTF-8 here?
-      
-      g_SingleMatchDb[++g_MatchTotal] := row[1]
-      ; If row[1] has "normal" capitalization ("|firstCap|"), it will be adjusted to match word.
-      word := AdjustCapitalization(row[1], targetCapitalization, g_Word)
-      g_SingleMatchAdj[g_MatchTotal] := word
+   words := []
+   for each, row in Matches.Rows {
+      words.Push(row[1])
+   }
+   
+   if(alexF_config_GroupSimilarWords) {
+      groupedWords := GroupMatches(words, StrLen(g_Word) + alexF_config_MinDeltaLength)
+   } else {
+      groupedWords := words
+   }
 
-; AlexF  - Works:     DllCall("TAHelperU64.dll\AddEllipses1", "Str", word)
-;      MsgBox % "Converted '" . row[1] . "' of length " . oldLength . " to '" . word . "' of length " . StrLen(word) . ". ErrorLevel: " . ErrorLevel
-      
-      continue
+   g_SingleMatchDb := Object() ; for deleting from the database
+   g_SingleMatchAdj := Object()
+   for each, truncWord in groupedWords {
+
+      g_SingleMatchDb[++g_MatchTotal] := truncWord
+      ; If truncWord has "normal" capitalization ("|firstCap|"), it will be adjusted to match word.
+      adjWord := AdjustCapitalization(truncWord, targetCapitalization, g_Word)
+      g_SingleMatchAdj[g_MatchTotal] := adjWord
+
+      if(g_MatchTotal == prefs_ListBoxRows) {
+         break
+      }
    }
    
    ;If no match then clear Tip 
@@ -466,48 +469,40 @@ RecomputeMatches()
       ClearAllVars(false)
       Return 
    } 
-   
-   /* 
-   ; AlexF - Learning DllCall
-   ;------------------------------------------
-   numbers := 0 ; [] WORKS - 1
-   index := 0
-   intSize := 4 ; A_PtrSize = 8 on 64-bit system?
-   VarSetCapacity(numbers,g_MatchTotal * intSize) ; create a block of memory
-   Loop % g_MatchTotal
-   {
-      index += 1
-      NumPut(10010 * index, numbers, (index - 1) * intSize)
-   }
-   DllCall("TAHelperU64.dll\ReadNumbers", "Ptr", &numbers, "Int", index)
 
-   ;------------------------------------------
-   strings := "" ; WORKS - 2
-   foo1 := "Foo1"
-   foo2 := "fOO2"
-   MsgBox % "Address of foo1 is " . &foo1 . "; Content of foo1 is " . foo1 . "; The code of the first char is " *(&foo1)
-   MsgBox % "Address of foo2 is " . &foo2 . "; Content of foo2 is " . foo2 . "; The code of the first char is " *(&foo2)
-   VarSetCapacity(strings,2 * A_PtrSize + 128) ; create a block of memory
-   NumPut(&foo1, strings, 0)
-   NumPut(&foo2, strings, A_PtrSize)
-   DllCall("TAHelperU64.dll\AddEllipses", "Ptr", &strings, "Int", 2)
-
-   ;------------------------------------------
-   strings := "" ; WORKS - 3
-   VarSetCapacity(strings,g_MatchTotal * A_PtrSize + 128) ; create a block of memory
-   Loop % g_MatchTotal
-   {
-      index += 1
-      word%index% := g_SingleMatchAdj[index]
-      NumPut(&(word%index%), &strings, (index - 1) * A_PtrSize)
-   }
-   DllCall("TAHelperU64.dll\AddEllipses", "Ptr", &strings, "Int", g_MatchTotal)
-   */
-
-  
    SetupMatchPosition() ; what position to highlight in the listbox
    RebuildMatchList() ; generate g_Match - concatenation of all the lines in the listbox
    ShowListBox()
+}
+
+;------------------------------------------------------------------------
+
+; Given array of words, sorted alphabetically, and if the table
+; is long enough, truncate each long word, add ellipsis and removed same words.
+GroupMatches(words, truncLength) {
+   global prefs_ListBoxRows
+   global alexF_config_Ellipsis
+
+   if(words.MaxIndex() <= prefs_ListBoxRows)
+      Return words ; no value OK?
+   
+   ;_1. Truncate the words
+   truncWords := []
+   
+   for each, w in words {
+      l := StrLen(w)
+      if(l > truncLength) {
+         truncW := SubStr(w, 1, truncLength) . alexF_config_Ellipsis
+         if(truncW == truncWords[truncWords.MaxIndex()]) {
+            continue ; skip duplicate
+         }
+         truncWords.Push(truncW)
+      } else {
+         truncWords.Push(w)
+      }
+   }
+   
+   Return truncWords
 }
 
 ;------------------------------------------------------------------------
@@ -1101,18 +1096,24 @@ DeleteSelectedWordFromList()
    global g_MatchPos
    global g_SingleMatchDb    ;AlexF array of matched words, as they are stored in the database
    global prefs_ArrowKeyMethod ; AlexF
+   global alexF_config_Ellipsis
 
-   if !(g_SingleMatchDb[g_MatchPos] = "") ;only continue if g_SingleMatchDb is not empty
-   {
-      alexF := prefs_ArrowKeyMethod
-      prefs_ArrowKeyMethod := "LastPosition"
-      
-      DeleteWordFromList(g_SingleMatchDb[g_MatchPos])
-      RecomputeMatches()
-      
-      prefs_ArrowKeyMethod := alexF
+   word := g_SingleMatchDb[g_MatchPos]
+   if (word == "") ;only continue if g_SingleMatchDb is not empty
       Return
+      
+   lastChar := SubStr(word, 0)
+   if(lastChar == alexF_config_Ellipsis) {
+      Return ; cannot delete
    }
+
+   alexF := prefs_ArrowKeyMethod
+   prefs_ArrowKeyMethod := "LastPosition"
+   
+   DeleteWordFromList(word)
+   RecomputeMatches()
+   
+   prefs_ArrowKeyMethod := alexF
    
 }
 

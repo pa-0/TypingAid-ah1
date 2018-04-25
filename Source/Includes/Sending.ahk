@@ -27,8 +27,14 @@ SendWord(WordIndex)
    global g_Word           ;AlexF word typed by user
    global prefs_LearnMode  ;AlexF
    global alexF_config_OnAfterCompletion
-   
+   global alexF_config_Ellipsis
+
    sendingToWnd := g_SingleMatchAdj[WordIndex]
+   sendingToWnd := RTrim(sendingToWnd, alexF_config_Ellipsis)
+   ; lastChar := SubStr(sendingToWnd, 0)
+   ; if(lastChar == alexF_config_Ellipsis) {
+      ; sendingToWnd := RTrim(sendingToWnd, alexF_config_Ellipsis)
+   ; }
    ForceBackspace := false
    SendFull(sendingToWnd, ForceBackspace)
    
