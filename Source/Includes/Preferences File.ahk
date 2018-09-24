@@ -412,10 +412,10 @@ ValidatePreferences()
    If prefs_ListBoxRows is not Integer
       prefs_ListBoxRows := dft_ListBoxRows
    
-   IfLess, prefs_ListBoxRows, 3
-      prefs_ListBoxRows = 3
-   else IfGreater, prefs_ListBoxRows, 30
-      prefs_ListBoxRows = 30
+   IfLess, prefs_ListBoxRows, 2
+      prefs_ListBoxRows = 2
+   else IfGreater, prefs_ListBoxRows, 10
+      prefs_ListBoxRows = 10
             
    Return
 }
@@ -523,7 +523,7 @@ helpinfo_LearnCount=
 
 helpinfo_ListBoxRows=
 (
-;"Maximum number of results to show" is the maximum number of rows to show in the ListBox. This value can range from 3 to 30.
+;"Maximum number of results to show" is the maximum number of rows to show in the ListBox. This value can range from 3 to 30. Alex: 2 to 10
 )
 
 helpinfo_Length=

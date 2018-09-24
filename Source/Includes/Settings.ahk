@@ -289,7 +289,7 @@ ConstructGui()
    Gui, MenuGui:Font, cBlack
 
    Gui, MenuGui:Add, GroupBox, x%MenuGroup1BoxX% y%MenuRowY% w%MenuThreeColGroupWidth% h%MenuRowHeight% , Maximum number of results to show
-   Menu_ListBoxRowsOptions=|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|
+   Menu_ListBoxRowsOptions=|2|3|4|5|6|7|8|9|10|
    StringReplace,  Menu_ListBoxRowsOptions, Menu_ListBoxRowsOptions, |%prefs_ListBoxRows%|,|%prefs_ListBoxRows%||
    StringTrimLeft, Menu_ListBoxRowsOptions, Menu_ListBoxRowsOptions, 1
    Gui, MenuGui:Add, DDL, x%MenuGroup1EditX% y%MenuRowEditY% w%MenuThreeColEditWidth% r5 vprefs_ListBoxRows gEditValue, %Menu_ListBoxRowsOptions%
@@ -693,7 +693,7 @@ GetList(TitleType,GetExe)
    Menu_InProcessList := true
    Menu_GetExe := GetExe
    Menu_TitleType := TitleType
-   If (GetExe == 1)
+   If (GetExe == 1) ; AlexF: get list of active processes
    {
       WinGet, id, list,,, Program Manager
       Loop, %id%

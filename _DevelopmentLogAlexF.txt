@@ -18,3 +18,14 @@ How to use:
 1. Added TAHelper.dll to process strings in convenient environment.
 1a. Meanwhile, I am only adding ellipsis, and this destroys insertion functionality. Need work.
 2. Installed debugger plugin in Notepad++; prepared *.bat to run without compilation. 
+
+4:08 PM 8/12/2018
+
+Note1: I do not need TAHelper.dll, so no need in Visual Studio. 
+       I managed with AHK and SQL languages 
+       See also D:\Downloads\Apps\AutoHotKey\DB Browser for SQLite
+
+Note2: I managed to use DBGp debugger, see
+       D:\Downloads\Apps\AutoHotKey\_ReadMe-DebugAhkWithNotepad++
+
+AHK documentation: https://autohotkey.com/docs/AutoHotkey.htm

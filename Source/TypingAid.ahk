@@ -479,26 +479,55 @@ RecomputeMatches()
 
 ; Given array of words, sorted alphabetically, and if the table
 ; is long enough, truncate each long word, add ellipsis and removed same words.
+; truncLength - integer, minimal length of truncated words.
 GroupMatches(words, truncLength) {
    global prefs_ListBoxRows
    global alexF_config_Ellipsis
 
    if(words.MaxIndex() <= prefs_ListBoxRows)
-      Return words ; no value OK?
+      Return words
    
-   ;_1. Truncate the words
+   ;Try to truncate and group some of the words
    truncWords := []
+   prevWord := "" ; previous word, possibly truncated and with ellipsis
    
    for each, w in words {
-      l := StrLen(w)
-      if(l > truncLength) {
-         truncW := SubStr(w, 1, truncLength) . alexF_config_Ellipsis
-         if(truncW == truncWords[truncWords.MaxIndex()]) {
-            continue ; skip duplicate
-         }
-         truncWords.Push(truncW)
-      } else {
+      L := StrLen(w)
+      prevL := StrLen(prevWord)
+      
+      ; Don't add ellipsis to short words
+      if(L <= truncLength || prevL <= truncLength) {
          truncWords.Push(w)
+         prevWord := w
+         continue
+         }
+      
+      ; This and previous words are long enough. Find length of match with previous word.
+      minL := L < prevL ? L : prevL
+      matchedLength := 0
+      Loop % minL {
+         if(SubStr(w, A_index, 1) != SubStr(prevWord, A_index, 1)) {
+            matchedLength := A_index - 1
+            truncW := SubStr(w, 1, matchedLength) . alexF_config_Ellipsis
+            Goto, ReplaceOrPush
+         }
+      }
+      
+      ; The shorter word fully matches the beginning of the longer one.
+      if(L < prevL) {
+         truncW := w . alexF_config_Ellipsis
+      } else {
+         truncW := prevWord . alexF_config_Ellipsis
+      }
+      matchedLength := StrLen(truncW)
+
+      ReplaceOrPush:
+      if(matchedLength >= truncLength) {
+         truncWords[truncWords.MaxIndex()] := truncW ; replace previous match by possibly shorter match
+         prevWord := truncW
+      } else {
+         truncWords.Push(w) ; match is too short, don't use ellipsis
+         prevWord := w
       }
    }
    

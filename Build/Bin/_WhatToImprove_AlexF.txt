@@ -35,5 +35,19 @@ INSERT INTO Words (wordindexed, word, count, wordreplacement) VALUES
 ('ABSOLUTE', 'absolute', 4, ''),
 ('ABSOLUTELY', 'absolutely', 618, '')
 
+4:06 PM 8/12/2018
+
+TypingAid:
++ ignore words starting with numbers - NOW IGNORING ANY NUMBERS, is it OK?
++ ignore words starting with numbers - NOW IGNORING ANY NUMBERS, is it OK?
+   [See Advanced (Experts Only) | Force New Words Characters] This is not exactly what I wanted, but it is better
+- don't show 'talk', if there is 'talk...'
+- don't show prompt, if there are more than 3 options (configurable)
+   - do show, if there are a few very long options?
+- detect some windows like email address in Google or Outlook and do not show prompt there
+  x not possible for Google or any window in a browser
+  + possible for Outlook? See "AlexF: get list of active processes" in Settings.ahk
+- if word was added after typing only once, and it is not in the dictionary - fade it out
++ do not block enter!! -- this is just a bug. Hm-m. It is working.
 
 
