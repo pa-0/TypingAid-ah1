@@ -116,11 +116,8 @@ ReadWordList()
    {
       Progress, M, Please wait..., Converting learned words, %g_ScriptTitle%
     
-      ;Force LearnedWordCountValue to 0 if not already set as we are now processing Learned Words
-      IfEqual, LearnedWordCountValue,
-      {
-         LearnedWordCountValue=0
-      }
+      ;Force LearnedWordCountValue to 0 as we are now processing Learned Words
+      LearnedWordCountValue=0
       
       g_WordListDB.BeginTransaction()
       if(alexF_config_BackupWordsAndCounts) {
@@ -163,10 +160,11 @@ ReadWordList()
 
 ;------------------------------------------------------------------------
 
-;AlexF. This function is called if the database content in WordlistLearned.db was lost 
-;       and then recreated from the backup - WordlistLearned.db. It assigns word counts 
+;AlexF. DON'T USE.
+;       This function is called if the database content in WordlistLearned.db was lost 
+;       and then recreated from the backup - WordlistLearned.csv. It assigns word counts 
 ;       according to the inverse order as the words are listed in WordlistLearned.txt.
-;       (They are ordered by frequency in WordlistLearned.txt, and this their *relative* frequencies are
+;       (They are ordered by frequency in WordlistLearned.txt, and thus their *relative* frequencies are
 ;       imitated). I SHOULD MAKE SURE NOT TO USE IT, because I will store actual frequencies.
 ReverseWordNums(LearnedWordCountValue)
 {
@@ -209,6 +207,7 @@ AddWordToList(AddWordRaw,ForceCountNewOnly, LearnedWordCountValue=0)
    global prefs_LearnMode
    global g_WordListDone
    global g_WordListDB
+   global g_LearnedWordInsertionTime ; AlexF, in milliseconds, 10 ms resolution
    
    if !(CheckValid(AddWordRaw))
       return
@@ -218,9 +217,12 @@ AddWordToList(AddWordRaw,ForceCountNewOnly, LearnedWordCountValue=0)
    
    TransformWord(AddWord, AddWordTransformed, AddWordIndexTransformed)
 
-   IfEqual, g_WordListDone, 0 ;if this is read from the wordlist, AlexF expects LearnedWordCountValue > 0
+   ; If wordlist is not completed yet
+   IfEqual, g_WordListDone, 0 
    {
-      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . LearnedWordCountValue . "');")
+      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" 
+      . AddWordIndexTransformed . "','" . AddWordTransformed . "','" 
+      . LearnedWordCountValue . "');") ;if this is read from the wordlist, AlexF expects LearnedWordCountValue > 0
 
       Return
    } 
@@ -246,7 +248,11 @@ AddWordToList(AddWordRaw,ForceCountNewOnly, LearnedWordCountValue=0)
             
       CountValue = 1
       
-      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" . AddWordIndexTransformed . "','" . AddWordTransformed . "','" . CountValue . "');")
+      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" 
+      . AddWordIndexTransformed . "','" 
+      . AddWordTransformed . "','" . CountValue . "');")
+
+      g_LearnedWordInsertionTime := A_TickCount
    } else
    {
       UpdateWordCount(AddWord) ;Increment the word count if it's already in the list and we aren't forcing it on
@@ -473,6 +479,9 @@ MaybeUpdateWordAndCountTextFile()
    global g_WordListDB
    global g_WordListDone
    global prefs_LearnCount
+   
+   ; Purge database of one-time entered words (possibly typos)
+   g_WordListDB.Query("DELETE FROM words WHERE count = 1;")
    
    ; Update the Learned Words
    IfEqual, g_WordListDone, 1

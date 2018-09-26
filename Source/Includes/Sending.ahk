@@ -20,7 +20,7 @@ SendKey(Key)
 
 ; AlexF - 'types' a word from  g_SingleMatchAdj to the active window. 
 ;         The word is already in the database, and its count is updated.
-;         However, as now (04/22/2018) I may modify the word before sending, it may not be in tbe database.
+;         However, as of 04/22/2018, I may modify the word before sending, it may not be in the database.
 SendWord(WordIndex)
 {
    global g_SingleMatchAdj ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 

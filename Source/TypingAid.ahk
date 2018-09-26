@@ -52,6 +52,7 @@ alexF_config_OrderByLength := true
 alexF_config_GroupSimilarWords := true ; This supersedes alexF_config_OrderByLength
 alexF_config_MinDeltaLength := 2
 alexF_config_Ellipsis := Chr(0x2026)
+alexF_config_PurgeInterval := 3600 * 1000 ; One hour in milliseconds; 1 * 60 * 1000 ;1 min    
 
 alexF_config_PreventScrollbar := true
 alexF_config_BackupWordsAndCounts := true
@@ -149,6 +150,9 @@ MainLoop()
 MainLoop()
 {
    global g_TerminatingEndKeys
+   global g_LearnedWordInsertionTime
+   
+   g_LearnedWordInsertionTime := 0 ; no insertions yet
    Loop 
    { 
 
@@ -322,13 +326,13 @@ RecomputeMatchesTimer:
    RecomputeMatches()
    Return
 
+; Takes the given word (g_Word), recompiles the list of matches and redisplays the wordlist.
 RecomputeMatches()
 {
-   ; This function will take the given word, and will recompile the list of matches and redisplay the wordlist.
    global g_MatchTotal         ;AlexF count of matched words
    global g_SingleMatchDb      ;AlexF array of matched words, as they are stored in the database. Used for deleting only.
    global g_SingleMatchAdj     ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
-   global g_Word               ; AlexF word typed by user
+   global g_Word               ;AlexF word typed by user
    global g_WordListDB
    global prefs_ArrowKeyMethod
    global prefs_LearnMode
@@ -340,7 +344,19 @@ RecomputeMatches()
    global alexF_config_PreventScrollbar
    global alexF_config_GroupSimilarWords
    global alexF_config_MinDeltaLength
+   global alexF_config_PurgeInterval
+   global g_LearnedWordInsertionTime ; AlexF, in milliseconds, 10 ms resolution
    
+   ;_0. Maybe purge database of one-time entered words (possibly typos)
+   if(g_LearnedWordInsertionTime) {
+         elapsedTime := A_TickCount - g_LearnedWordInsertionTime
+         
+        if(elapsedTime > alexF_config_PurgeInterval) {
+            ; MsgBox % "elapsedTime = " elapsedTime " msec; purge interval = " alexF_config_PurgeInterval
+            g_WordListDB.Query("DELETE FROM words WHERE count = 1;")
+            g_LearnedWordInsertionTime := 0 ; reset "timer"
+         }
+   }
    
    SavePriorMatchPosition()
 
@@ -365,7 +381,7 @@ RecomputeMatches()
    
    StringUpper, WordAllCaps, g_Word
    
-   ; AlexF added: check capitalization
+   ; AlexF added: store word's capitalization to match it later
    targetCapitalization := GetCapitalization(g_Word)
    
    WordMatch := StrUnmark(WordAllCaps) ;AlexF - redundant?
@@ -424,6 +440,7 @@ RecomputeMatches()
       typedLength := StrLen(g_word)
       ;WhereQuery .= " AND LENGTH(word) > " . (typedLength - 1 + alexF_config_MinDeltaLength)  ;TODO reconcile with min word length? Think!!
       WhereQuery .= " AND LENGTH(word) > " . typedLength  
+      ;AlexF, from previous OrderByQuery: (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words.
       OrderByQuery := " ORDER BY word ASC" ; order alphabetically, case-sensitive.
   } else if (alexF_config_OrderByLength) { 
       OrderByQuery := " ORDER BY LENGTH(word)"
