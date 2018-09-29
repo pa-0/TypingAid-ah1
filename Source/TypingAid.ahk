@@ -50,7 +50,8 @@ alexF_config_PreventScrollbar := true
 alexF_config_OnAfterCompletion := "On also after completion"
 alexF_config_OrderByLength := true
 alexF_config_GroupSimilarWords := true ; This supersedes alexF_config_OrderByLength
-alexF_config_MinDeltaLength := 2
+alexF_config_MinDeltaLength := 2 ; display words that are at least 2 chars longer than typed
+alexF_config_DeltaForEllipsis := 1  ; at least 1 because ellipsis is one extra click for the user
 alexF_config_Ellipsis := Chr(0x2026)
 alexF_config_PurgeInterval := 3600 * 1000 ; One hour in milliseconds; 1 * 60 * 1000 ;1 min    
 
@@ -344,8 +345,18 @@ RecomputeMatches()
    global alexF_config_PreventScrollbar
    global alexF_config_GroupSimilarWords
    global alexF_config_MinDeltaLength
+   global alexF_config_DeltaForEllipsis
    global alexF_config_PurgeInterval
    global g_LearnedWordInsertionTime ; AlexF, in milliseconds, 10 ms resolution
+   global wantTraceMatches ; debug, remove
+   
+   wantTraceMatches := false
+   
+   if(wantTraceMatches) {
+      FileAppend, RecomputeMatches`t TYPED: %g_Word%`n, D:\ahkTest.txt, UTF-8
+      FileAppend, '''''''''''''''''''''''''''''''''''''''''''''''''''''`n, D:\ahkTest.txt, UTF-8
+   }
+
    
    ;_0. Maybe purge database of one-time entered words (possibly typos)
    if(g_LearnedWordInsertionTime) {
@@ -409,7 +420,7 @@ RecomputeMatches()
             }
             ; because SQLite cannot do case-insensitivity on accented characters using LIKE, we need
             ; to handle it manually, so we need 2 searches for each accented character the user typed.
-            ;GLOB is used for consistency with the wordindexed search.
+            ; GLOB is used for consistency with the wordindexed search.
             WordAccentQuery .= " AND (word GLOB '" . PrefixChars . SubCharUpperEscaped . "*' OR word GLOB '"
             WordAccentQuery .= PrefixChars . SubCharLowerEscaped . "*')"
          }         
@@ -438,8 +449,7 @@ RecomputeMatches()
    ;_3. Second query - actually retrieve matches, in certain order
    if (alexF_config_GroupSimilarWords) {
       typedLength := StrLen(g_word)
-      ;WhereQuery .= " AND LENGTH(word) > " . (typedLength - 1 + alexF_config_MinDeltaLength)  ;TODO reconcile with min word length? Think!!
-      WhereQuery .= " AND LENGTH(word) > " . typedLength  
+      WhereQuery .= " AND LENGTH(word) >= " . (typedLength + alexF_config_MinDeltaLength)
       ;AlexF, from previous OrderByQuery: (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words.
       OrderByQuery := " ORDER BY word ASC" ; order alphabetically, case-sensitive.
   } else if (alexF_config_OrderByLength) { 
@@ -461,7 +471,7 @@ RecomputeMatches()
    }
    
    if(alexF_config_GroupSimilarWords) {
-      groupedWords := GroupMatches(words, StrLen(g_Word) + alexF_config_MinDeltaLength)
+      groupedWords := GroupMatches(words, StrLen(g_Word) + alexF_config_MinDeltaLength + alexF_config_DeltaForEllipsis)
    } else {
       groupedWords := words
    }
@@ -486,6 +496,19 @@ RecomputeMatches()
       ClearAllVars(false)
       Return 
    } 
+   
+   
+   if(wantTraceMatches) {
+      w1 := g_SingleMatchDb[1]
+      w2 := g_SingleMatchDb[g_MatchTotal]
+      if(g_MatchTotal == 1) 
+         FileAppend, RecomputeMatches`t ONLY_: %w1%`n, D:\ahkTest.txt, UTF-8
+      else
+         FileAppend, RecomputeMatches`t FIRST: %w1%`t LAST %w2%`n, D:\ahkTest.txt, UTF-8
+
+      FileAppend, #####################################################`n, D:\ahkTest.txt, UTF-8
+   }
+
 
    SetupMatchPosition() ; what position to highlight in the listbox
    RebuildMatchList() ; generate g_Match - concatenation of all the lines in the listbox
@@ -500,6 +523,7 @@ RecomputeMatches()
 GroupMatches(words, truncLength) {
    global prefs_ListBoxRows
    global alexF_config_Ellipsis
+   global wantTraceMatches ; debug, remove
 
    if(words.MaxIndex() <= prefs_ListBoxRows)
       Return words
@@ -508,18 +532,23 @@ GroupMatches(words, truncLength) {
    truncWords := []
    prevWord := "" ; previous word, possibly truncated and with ellipsis
    
-   for each, w in words {
+   for idx, w in words {
+      if(wantTraceMatches)
+         FileAppend, GroupMatches`t %w% -`t, D:\ahkTest.txt, UTF-8
+
       L := StrLen(w)
       prevL := StrLen(prevWord)
       
-      ; Don't add ellipsis to short words
-      if(L <= truncLength || prevL <= truncLength) {
+      ;_1. On the first iteration, just populate previous word 
+      if(prevL == 0) {
          truncWords.Push(w)
          prevWord := w
+      if(wantTraceMatches)
+         FileAppend, Added FIRST: %w%`n, D:\ahkTest.txt, UTF-8
          continue
-         }
+      }
       
-      ; This and previous words are long enough. Find length of match with previous word.
+      ;_2. Find length of match with previous word.
       minL := L < prevL ? L : prevL
       matchedLength := 0
       Loop % minL {
@@ -530,7 +559,7 @@ GroupMatches(words, truncLength) {
          }
       }
       
-      ; The shorter word fully matches the beginning of the longer one.
+      ;_3. The shorter word fully matches the beginning of the longer one.
       if(L < prevL) {
          truncW := w . alexF_config_Ellipsis
       } else {
@@ -538,16 +567,28 @@ GroupMatches(words, truncLength) {
       }
       matchedLength := StrLen(truncW)
 
+      ;_4 Either replace truncated word in truncWords, or append the whole word to truncWords
       ReplaceOrPush:
       if(matchedLength >= truncLength) {
+         if(wantTraceMatches) {
+            lastEntry := truncWords[truncWords.MaxIndex()] 
+            FileAppend, Replaced last entry %lastEntry% with %truncW%`t, D:\ahkTest.txt, UTF-8
+         }
+
          truncWords[truncWords.MaxIndex()] := truncW ; replace previous match by possibly shorter match
          prevWord := truncW
       } else {
-         truncWords.Push(w) ; match is too short, don't use ellipsis
+         if(wantTraceMatches)
+            FileAppend, Added entry: %w%`t, D:\ahkTest.txt, UTF-8
+         truncWords.Push(w) ; add the word as is, no ellipsis, since the match is too short
          prevWord := w
       }
+      if(wantTraceMatches) {
+         FileAppend, [truncW: %truncW%   Min length: %truncLength%]`n, D:\ahkTest.txt, UTF-8
+      }
+
    }
-   
+   FileAppend, -----------------------------------------------------`n, D:\ahkTest.txt, UTF-8
    Return truncWords
 }
 
