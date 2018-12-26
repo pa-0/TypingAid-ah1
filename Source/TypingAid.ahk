@@ -151,7 +151,7 @@ MainLoop()
 MainLoop()
 {
    global g_TerminatingEndKeys
-   global g_LearnedWordInsertionTime
+   global g_LearnedWordInsertionTime ; is used to discard one-time entered words - often typos
    
    g_LearnedWordInsertionTime := 0 ; no insertions yet
    Loop 
@@ -221,7 +221,6 @@ ProcessKey(InputChar,EndKey)
       }
    }
 
-
    IF !( ReturnWinActive() )
    {
       if (!GetIncludedActiveWindow())
@@ -251,7 +250,7 @@ ProcessKey(InputChar,EndKey)
             Return
             
          ; add the word if switching lines
-         AddWordToList(g_Word,0)
+         AddWordToList(g_Word)
          ClearAllVars(true)
          g_Word := InputChar
          Return         
@@ -282,7 +281,7 @@ ProcessKey(InputChar,EndKey)
       ;learn and blank word, then assign number pressed to the word
       IfNotEqual, g_LastInput_Id, %g_Active_Id%
       {
-         AddWordToList(g_Word,0)
+         AddWordToList(g_Word)
          ClearAllVars(true)
          g_Word := InputChar
          g_LastInput_Id := g_Active_Id
@@ -291,13 +290,13 @@ ProcessKey(InputChar,EndKey)
    
       if InputChar in %prefs_ForceNewWordCharacters%
       {
-         AddWordToList(g_Word,0)
+         AddWordToList(g_Word)
          ClearAllVars(true)
          g_Word := InputChar
       ; } else if InputChar in %prefs_EndWordCharacters% ; AlexF decided not to support this option
       ; {
          ; g_Word .= InputChar
-         ; AddWordToList(g_Word, 1)
+         ; AddWordToList(g_Word)
          ; ClearAllVars(true)
       } else { 
          g_Word .= InputChar
@@ -308,7 +307,7 @@ ProcessKey(InputChar,EndKey)
       ;Don't do anything if we aren't in the original window and aren't starting a new word
       Return
    } else {
-      AddWordToList(g_Word,0)
+      AddWordToList(g_Word)
       ClearAllVars(true)
       Return
    }
@@ -326,194 +325,6 @@ RecomputeMatchesTimer:
    Thread, NoTimers
    RecomputeMatches()
    Return
-
-; Takes the given word (g_Word), recompiles the list of matches and redisplays the wordlist.
-RecomputeMatches()
-{
-   global g_MatchTotal         ;AlexF count of matched words
-   global g_SingleMatchDb      ;AlexF array of matched words, as they are stored in the database. Used for deleting only.
-   global g_SingleMatchAdj     ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
-   global g_Word               ;AlexF word typed by user
-   global g_WordListDB
-   global prefs_ArrowKeyMethod
-   global prefs_LearnMode
-   global prefs_ListBoxRows
-   global prefs_NoBackSpace
-   global prefs_ShowLearnedFirst
-   global prefs_SuppressMatchingWord
-   global alexF_config_OrderByLength
-   global alexF_config_PreventScrollbar
-   global alexF_config_GroupSimilarWords
-   global alexF_config_MinDeltaLength
-   global alexF_config_DeltaForEllipsis
-   global alexF_config_PurgeInterval
-   global g_LearnedWordInsertionTime ; AlexF, in milliseconds, 10 ms resolution
-   global wantTraceMatches ; debug, remove
-   
-   wantTraceMatches := false
-   
-   if(wantTraceMatches) {
-      FileAppend, RecomputeMatches`t TYPED: %g_Word%`n, D:\ahkTest.txt, UTF-8
-      FileAppend, '''''''''''''''''''''''''''''''''''''''''''''''''''''`n, D:\ahkTest.txt, UTF-8
-   }
-
-   
-   ;_0. Maybe purge database of one-time entered words (possibly typos)
-   if(g_LearnedWordInsertionTime) {
-         elapsedTime := A_TickCount - g_LearnedWordInsertionTime
-         
-        if(elapsedTime > alexF_config_PurgeInterval) {
-            ; MsgBox % "elapsedTime = " elapsedTime " msec; purge interval = " alexF_config_PurgeInterval
-            g_WordListDB.Query("DELETE FROM words WHERE count = 1;")
-            g_LearnedWordInsertionTime := 0 ; reset "timer"
-         }
-   }
-   
-   SavePriorMatchPosition()
-
-   ;_1. Prepare for the search in DB
-   ;Match part-word with command 
-   g_MatchTotal = 0 
-   
-   IfEqual, prefs_ArrowKeyMethod, Off
-   {
-      IfLess, prefs_ListBoxRows, 10
-         LimitTotalMatches := prefs_ListBoxRows
-      else LimitTotalMatches = 10
-   } else {
-      if(alexF_config_GroupSimilarWords) {
-         LimitTotalMatches = 200
-      } else if (alexF_config_PreventScrollbar) {
-         LimitTotalMatches := prefs_ListBoxRows
-      } else {
-         LimitTotalMatches = 200
-      }
-   }
-   
-   StringUpper, WordAllCaps, g_Word
-   
-   ; AlexF added: store word's capitalization to match it later
-   targetCapitalization := GetCapitalization(g_Word)
-   
-   WordMatch := StrUnmark(WordAllCaps) ;AlexF - redundant?
-   
-   StringUpper, WordMatch, WordMatch
-   
-   ; if a user typed an accented character, we should exact match on that accented character
-   if (WordMatch != WordAllCaps) {
-      WordAccentQuery =
-      LoopCount := StrLen(g_Word)
-      Loop, %LoopCount%
-      {
-         Position := A_Index
-         SubChar := SubStr(g_Word, Position, 1)
-         SubCharNormalized := StrUnmark(SubChar)
-         if !(SubCharNormalized == SubChar) {
-            StringUpper, SubCharUpper, SubChar
-            StringLower, SubCharLower, SubChar
-            StringReplace, SubCharUpperEscaped, SubCharUpper, ', '', All
-            StringReplace, SubCharLowerEscaped, SubCharLower, ', '', All
-            PrefixChars =
-            Loop, % Position - 1
-            {
-               PrefixChars .= "?"
-            }
-            ; because SQLite cannot do case-insensitivity on accented characters using LIKE, we need
-            ; to handle it manually, so we need 2 searches for each accented character the user typed.
-            ; GLOB is used for consistency with the wordindexed search.
-            WordAccentQuery .= " AND (word GLOB '" . PrefixChars . SubCharUpperEscaped . "*' OR word GLOB '"
-            WordAccentQuery .= PrefixChars . SubCharLowerEscaped . "*')"
-         }         
-      }
-   } else {
-      WordAccentQuery =
-   }
-   
-   StringReplace, WordExactEscaped, g_Word, ', '', All
-   StringReplace, WordMatchEscaped, WordMatch, ', '', All
-   
-   IfEqual, prefs_SuppressMatchingWord, On
-   {
-      IfEqual, prefs_NoBackSpace, Off
-      {
-         SuppressMatchingWordQuery := " AND word <> '" . WordExactEscaped . "'"
-      } else {
-               SuppressMatchingWordQuery := " AND wordindexed <> '" . WordMatchEscaped . "'"
-            }
-   }
-   
-   ;_2. First query - just find minimal frequency of matched words ('Normalize') 
-   ; to retrieve more frequent and longer words first- AlexF removed 
-   WhereQuery := " WHERE wordindexed GLOB '" . WordMatchEscaped . "*' " . SuppressMatchingWordQuery . WordAccentQuery
-   
-   ;_3. Second query - actually retrieve matches, in certain order
-   if (alexF_config_GroupSimilarWords) {
-      typedLength := StrLen(g_word)
-      WhereQuery .= " AND LENGTH(word) >= " . (typedLength + alexF_config_MinDeltaLength)
-      ;AlexF, from previous OrderByQuery: (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words.
-      OrderByQuery := " ORDER BY word ASC" ; order alphabetically, case-sensitive.
-  } else if (alexF_config_OrderByLength) { 
-      OrderByQuery := " ORDER BY LENGTH(word)"
-  } else {
-      MsgBox % "Error. Missing setting to display matches."
-      Return
-  }
-
-
-   ;AlexF 1-column table of matched words
-   query := "SELECT word FROM Words" 
-   query .= WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";"
-   Matches := g_WordListDB.Query(query)
-   
-   words := []
-   for each, row in Matches.Rows {
-      words.Push(row[1])
-   }
-   
-   if(alexF_config_GroupSimilarWords) {
-      groupedWords := GroupMatches(words, StrLen(g_Word) + alexF_config_MinDeltaLength + alexF_config_DeltaForEllipsis)
-   } else {
-      groupedWords := words
-   }
-
-   g_SingleMatchDb := Object() ; for deleting from the database
-   g_SingleMatchAdj := Object()
-   for each, truncWord in groupedWords {
-
-      g_SingleMatchDb[++g_MatchTotal] := truncWord
-      ; If truncWord has "normal" capitalization ("|firstCap|"), it will be adjusted to match word.
-      adjWord := AdjustCapitalization(truncWord, targetCapitalization, g_Word)
-      g_SingleMatchAdj[g_MatchTotal] := adjWord
-
-      if(g_MatchTotal == prefs_ListBoxRows) {
-         break
-      }
-   }
-   
-   ;If no match then clear Tip 
-   IfEqual, g_MatchTotal, 0
-   {
-      ClearAllVars(false)
-      Return 
-   } 
-   
-   
-   if(wantTraceMatches) {
-      w1 := g_SingleMatchDb[1]
-      w2 := g_SingleMatchDb[g_MatchTotal]
-      if(g_MatchTotal == 1) 
-         FileAppend, RecomputeMatches`t ONLY_: %w1%`n, D:\ahkTest.txt, UTF-8
-      else
-         FileAppend, RecomputeMatches`t FIRST: %w1%`t LAST %w2%`n, D:\ahkTest.txt, UTF-8
-
-      FileAppend, #####################################################`n, D:\ahkTest.txt, UTF-8
-   }
-
-
-   SetupMatchPosition() ; what position to highlight in the listbox
-   RebuildMatchList() ; generate g_Match - concatenation of all the lines in the listbox
-   ShowListBox()
-}
 
 ;------------------------------------------------------------------------
 
@@ -588,7 +399,9 @@ GroupMatches(words, truncLength) {
       }
 
    }
-   FileAppend, -----------------------------------------------------`n, D:\ahkTest.txt, UTF-8
+   if(wantTraceMatches) {
+      FileAppend, -----------------------------------------------------`n, D:\ahkTest.txt, UTF-8
+   }
    Return truncWords
 }
 
@@ -655,7 +468,7 @@ CheckForCaretMove(MouseButtonClick, UpdatePosition = false)
          if (( g_OldCaretY != HCaretY() ) || (g_OldCaretX != HCaretX() ))
          {
             ; add the word if switching lines
-            AddWordToList(g_Word,0)
+            AddWordToList(g_Word)
             ClearAllVars(true)
          }
       }
@@ -1173,7 +986,7 @@ AddSelectedWordToList()
    ClipWait, 0
    IfNotEqual, Clipboard, 
    {
-      AddWordToList(Clipboard,1)
+      AddWordToList(Clipboard)
    }
    Clipboard = %ClipboardSave%
 }
@@ -1362,17 +1175,21 @@ MaybeFixFileEncoding(File,Encoding)
    {
       
       IfExist, %File%
-      {    
+      {  
+         ;_0. Does this verrsion of AHK support Unicode? (ALWAYS yes in our case)
          IfNotEqual, A_IsUnicode, 1
          {
             Encoding =
          }
          
-         
+         ;_1. Get handle to the specified file 
          EncodingCheck := FileOpen(File,"r")
          
          If EncodingCheck
          {
+            ;_2. We need file conversion if 
+            ;    (2) it requested encoding is UTFxxxx (which is ALWAYS the case in this app)
+            ;    (1) or is file's encoding is different (for example ASCII) from the requested
             If Encoding
             {
                IF !(EncodingCheck.Encoding = Encoding)
@@ -1385,9 +1202,12 @@ MaybeFixFileEncoding(File,Encoding)
          
             IF WriteFile
             {
+               ;_3. Read the old content and release the handle
                Contents := EncodingCheck.Read()
                EncodingCheck.Close()
                EncodingCheck =
+               
+               ;_4. Create unconverted backup, then overwrite the file with new encoding
                FileCopy, %File%, %File%.preconv.bak
                FileDelete, %File%
                FileAppend, %Contents%, %File%, %Encoding%
@@ -1484,6 +1304,195 @@ if(alexF_config_BackupWordsAndCounts) {
 } else {
    MaybeUpdateWordlist()
 }
+
+; Takes the given word (g_Word), recompiles the list of matches and redisplays the wordlist.
+; AlexF, note: RecomputeMatches() is too long for Function List parser. 
+;              It should be the last in the file in order not to hide other functions
+RecomputeMatches()
+{
+   global g_MatchTotal         ;AlexF count of matched words
+   global g_SingleMatchDb      ;AlexF array of matched words, as they are stored in the database. Used for deleting only.
+   global g_SingleMatchAdj     ;AlexF array of matched words, with adjusted capitalization. This is what user sees. 
+   global g_Word               ;AlexF word typed by user
+   global g_WordListDB
+   global prefs_ArrowKeyMethod
+   global prefs_LearnMode
+   global prefs_ListBoxRows
+   global prefs_NoBackSpace
+   global prefs_ShowLearnedFirst
+   global prefs_SuppressMatchingWord
+   global alexF_config_OrderByLength
+   global alexF_config_PreventScrollbar
+   global alexF_config_GroupSimilarWords
+   global alexF_config_MinDeltaLength
+   global alexF_config_DeltaForEllipsis
+   global alexF_config_PurgeInterval
+   global g_LearnedWordInsertionTime ; AlexF, in milliseconds, 10 ms resolution
+   global wantTraceMatches ; debug, remove
+   
+   wantTraceMatches := false
+   
+   if(wantTraceMatches) {
+      FileAppend, RecomputeMatches`t TYPED: %g_Word%`n, D:\ahkTest.txt, UTF-8
+      FileAppend, '''''''''''''''''''''''''''''''''''''''''''''''''''''`n, D:\ahkTest.txt, UTF-8
+   }
+
+   
+   ;_0. Maybe purge database of one-time entered words (possibly typos)
+   if(g_LearnedWordInsertionTime) {
+         elapsedTime := A_TickCount - g_LearnedWordInsertionTime
+         
+        if(elapsedTime > alexF_config_PurgeInterval) {
+            ; MsgBox % "elapsedTime = " elapsedTime " msec; purge interval = " alexF_config_PurgeInterval
+            g_WordListDB.Query("DELETE FROM words WHERE count = 1;")
+            g_LearnedWordInsertionTime := 0 ; reset "timer"
+         }
+   }
+   
+   SavePriorMatchPosition()
+
+   ;_1. Prepare for the search in DB
+   ;Match part-word with command 
+   g_MatchTotal = 0 
+   
+   IfEqual, prefs_ArrowKeyMethod, Off
+   {
+      IfLess, prefs_ListBoxRows, 10
+         LimitTotalMatches := prefs_ListBoxRows
+      else LimitTotalMatches = 10
+   } else {
+      if(alexF_config_GroupSimilarWords) {
+         LimitTotalMatches = 200
+      } else if (alexF_config_PreventScrollbar) {
+         LimitTotalMatches := prefs_ListBoxRows
+      } else {
+         LimitTotalMatches = 200
+      }
+   }
+   
+   StringUpper, WordAllCaps, g_Word
+   
+   ; AlexF added: store word's capitalization to match it later
+   targetCapitalization := GetCapitalization(g_Word)
+   
+   WordMatch := StrUnmark(WordAllCaps) ;AlexF - redundant?
+   
+   StringUpper, WordMatch, WordMatch
+   
+   ; if a user typed an accented character, we should exact match on that accented character
+   if (WordMatch != WordAllCaps) {
+      WordAccentQuery =
+      LoopCount := StrLen(g_Word)
+      Loop, %LoopCount%
+      {
+         Position := A_Index
+         SubChar := SubStr(g_Word, Position, 1)
+         SubCharNormalized := StrUnmark(SubChar)
+         if !(SubCharNormalized == SubChar) {
+            StringUpper, SubCharUpper, SubChar
+            StringLower, SubCharLower, SubChar
+            StringReplace, SubCharUpperEscaped, SubCharUpper, ', '', All
+            StringReplace, SubCharLowerEscaped, SubCharLower, ', '', All
+            PrefixChars =
+            Loop, % Position - 1
+            {
+               PrefixChars .= "?"
+            }
+            ; because SQLite cannot do case-insensitivity on accented characters using LIKE, we need
+            ; to handle it manually, so we need 2 searches for each accented character the user typed.
+            ; GLOB is used for consistency with the wordindexed search.
+            WordAccentQuery .= " AND (word GLOB '" . PrefixChars . SubCharUpperEscaped . "*' OR word GLOB '"
+            WordAccentQuery .= PrefixChars . SubCharLowerEscaped . "*')"
+         }         
+      }
+   } else {
+      WordAccentQuery =
+   }
+   
+   StringReplace, WordExactEscaped, g_Word, ', '', All
+   StringReplace, WordMatchEscaped, WordMatch, ', '', All
+   
+   IfEqual, prefs_SuppressMatchingWord, On
+   {
+      IfEqual, prefs_NoBackSpace, Off
+      {
+         SuppressMatchingWordQuery := " AND word <> '" . WordExactEscaped . "'"
+      } else {
+               SuppressMatchingWordQuery := " AND wordindexed <> '" . WordMatchEscaped . "'"
+            }
+   }
+   
+   ;_2. First query - just find minimal frequency of matched words ('Normalize') 
+   ; to retrieve more frequent and longer words first- AlexF removed 
+   WhereQuery := " WHERE wordindexed GLOB '" . WordMatchEscaped . "*' " . SuppressMatchingWordQuery . WordAccentQuery
+   
+   ;_3. Second query - actually retrieve matches, in certain order
+   if (alexF_config_GroupSimilarWords) {
+      typedLength := StrLen(g_word)
+      WhereQuery .= " AND LENGTH(word) >= " . (typedLength + alexF_config_MinDeltaLength)
+      ;AlexF, from previous OrderByQuery: (count - min) * (1 - 0.75/nExtraChars) -- advantage to more frequent and longer words.
+      OrderByQuery := " ORDER BY word ASC" ; order alphabetically, case-sensitive.
+  } else if (alexF_config_OrderByLength) { 
+      OrderByQuery := " ORDER BY LENGTH(word)"
+  } else {
+      MsgBox % "Error. Missing setting to display matches."
+      Return
+  }
+
+
+   ;AlexF 1-column table of matched words
+   query := "SELECT word FROM Words" 
+   query .= WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";"
+   Matches := g_WordListDB.Query(query)
+   
+   words := []
+   for each, row in Matches.Rows {
+      words.Push(row[1])
+   }
+   
+   if(alexF_config_GroupSimilarWords) {
+      groupedWords := GroupMatches(words, StrLen(g_Word) + alexF_config_MinDeltaLength + alexF_config_DeltaForEllipsis)
+   } else {
+      groupedWords := words
+   }
+
+   g_SingleMatchDb := Object() ; for deleting from the database
+   g_SingleMatchAdj := Object()
+   for each, truncWord in groupedWords {
+
+      g_SingleMatchDb[++g_MatchTotal] := truncWord
+      ; If truncWord has "normal" capitalization ("|firstCap|"), it will be adjusted to match word.
+      adjWord := AdjustCapitalization(truncWord, targetCapitalization, g_Word)
+      g_SingleMatchAdj[g_MatchTotal] := adjWord
+
+      if(g_MatchTotal == prefs_ListBoxRows) {
+         break
+      }
+   }
+   
+   ;If no match then clear Tip 
+   IfEqual, g_MatchTotal, 0
+   {
+      ClearAllVars(false)
+      Return 
+   } 
+   
+   if(wantTraceMatches) {
+      w1 := g_SingleMatchDb[1]
+      w2 := g_SingleMatchDb[g_MatchTotal]
+      if(g_MatchTotal == 1) 
+         FileAppend, RecomputeMatches`t ONLY_: %w1%`n, D:\ahkTest.txt, UTF-8
+      else
+         FileAppend, RecomputeMatches`t FIRST: %w1%`t LAST %w2%`n, D:\ahkTest.txt, UTF-8
+
+      FileAppend, #####################################################`n, D:\ahkTest.txt, UTF-8
+   }
+
+   SetupMatchPosition() ; what position to highlight in the listbox
+   RebuildMatchList() ; generate g_Match - concatenation of all the lines in the listbox
+   ShowListBox()
+}
+
 
 ExitApp
 

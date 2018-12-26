@@ -43,7 +43,7 @@ SendWord(WordIndex)
       RecomputeMatches()
    } else {
       sendingToDb := AdjustCapitalization(sendingToWnd, "|firstCap|")
-      AddWordToList(sendingToDb, 0)
+      AddWordToList(sendingToDb)
       ClearAllVars(true)
    }
 

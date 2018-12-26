@@ -252,7 +252,8 @@ CreateWordsTable(WordsTableName:="Words")
 {
 	global g_WordListDB
 	
-	IF not g_WordListDB.Query("CREATE TABLE " . WordsTableName . " (wordindexed TEXT NOT NULL, word TEXT NOT NULL, count INTEGER, PRIMARY KEY (word) );")
+	IF not g_WordListDB.Query("CREATE TABLE " . WordsTableName
+   . " (wordindexed TEXT NOT NULL, word TEXT NOT NULL, count INTEGER, timestamp INTEGER, PRIMARY KEY (word) );")
 	{
 		ErrMsg := g_WordListDB.ErrMsg()
 		ErrCode := g_WordListDB.ErrCode()

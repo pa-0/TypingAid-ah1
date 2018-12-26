@@ -94,11 +94,11 @@ ReadWordList()
                break
             }
          } else {
-            AddWordToList(A_LoopField,0,"ForceLearn",LearnedWordsCount)
+            AddWordToList(A_LoopField,"ForceLearn",LearnedWordsCount)
          }
          */
          LearnedWordCountValue := 1 ;AlexF added this line -- don't know whether it makes sense. This step _4 is not exercised in my settings.
-         AddWordToList(A_LoopField,0,LearnedWordCountValue)
+         AddWordToList(A_LoopField,LearnedWordCountValue)
       }
       ParseWords =
       g_WordListDB.EndTransaction()
@@ -126,7 +126,7 @@ ReadWordList()
          Loop, Parse, WordsAndCounts, `n, `r
          {
             wordAndCount := StrSplit(A_LoopField, ",") 
-            AddWordToList(wordAndCount[1] ,0, wordAndCount[2])
+            AddWordToList(wordAndCount[1], wordAndCount[2])
          }
          WordsAndCounts =
       } else {
@@ -135,7 +135,7 @@ ReadWordList()
          Loop, Parse, ParseWords, `n, `r
          {
             
-            AddWordToList(A_LoopField,0,LearnedWordCountValue)
+            AddWordToList(A_LoopField, LearnedWordCountValue)
          }
          ParseWords =
       }
@@ -194,11 +194,11 @@ ReverseWordNums(LearnedWordCountValue)
 ;------------------------------------------------------------------------
 
 ; AlexF  Adds word to the database (or increases count of the existing word), if appropriate
-AddWordToList(AddWordRaw,ForceCountNewOnly, LearnedWordCountValue=0)
+AddWordToList(AddWordRaw, LearnedWordCountValue=0)
 {
    ;AddWord = Word to add to the list
-   ;ForceCountNewOnly = force this word to be permanently learned even if learnmode is off (because of prefs_EndWordCharacters)
-   ;ForceLearn = disables some checks in CheckValid - this parameter is ignored removed by AlexF.
+   ;ForceCountNewOnly = (removed by AlexF. Was:) force this word to be permanently learned even if learnmode is off (because of prefs_EndWordCharacters)
+   ;ForceLearn = disables some checks in CheckValid - this parameter is ignored, removed by AlexF.
    ;LearnedWordCountValue = will be non-zero only when words are read in from the backup "WordlistLearned.csv"
    global prefs_DoNotLearnStrings
    global prefs_ForceNewWordCharacters
@@ -212,6 +212,14 @@ AddWordToList(AddWordRaw,ForceCountNewOnly, LearnedWordCountValue=0)
    if !(CheckValid(AddWordRaw))
       return
    
+   ; If we adding words from typing, we set timestamp = current time in msec
+   ; If we reading them from the backup "WordlistLearned.csv", we reset all the timestamps
+   if(LearnedWordCountValue==0) {
+      timestamp := A_TickCount
+   } else {
+      timestamp = 0
+   }
+   
    ;AlexF. Before entering to the database, need to "normalize" capitalization
    AddWord := AdjustCapitalization(AddWordRaw, "|firstCap|")
    
@@ -220,9 +228,11 @@ AddWordToList(AddWordRaw,ForceCountNewOnly, LearnedWordCountValue=0)
    ; If wordlist is not completed yet
    IfEqual, g_WordListDone, 0 
    {
-      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" 
-      . AddWordIndexTransformed . "','" . AddWordTransformed . "','" 
-      . LearnedWordCountValue . "');") ;if this is read from the wordlist, AlexF expects LearnedWordCountValue > 0
+      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, timestamp) VALUES ('" 
+      . AddWordIndexTransformed . "','" 
+      . AddWordTransformed . "','" 
+      . LearnedWordCountValue . "','" ;if this is read from the wordlist, AlexF expects LearnedWordCountValue > 0
+      . timestamp . "');") 
 
       Return
    } 
@@ -248,9 +258,11 @@ AddWordToList(AddWordRaw,ForceCountNewOnly, LearnedWordCountValue=0)
             
       CountValue = 1
       
-      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count) VALUES ('" 
+      g_WordListDB.Query("INSERT INTO words (wordindexed, word, count, timestamp) VALUES ('" 
       . AddWordIndexTransformed . "','" 
-      . AddWordTransformed . "','" . CountValue . "');")
+      . AddWordTransformed . "','"
+      . CountValue . "','" ;if this is read from the wordlist, AlexF expects LearnedWordCountValue > 0
+      . timestamp . "');") 
 
       g_LearnedWordInsertionTime := A_TickCount
    } else
@@ -354,7 +366,11 @@ UpdateWordCount(word)
       Return
    
    StringReplace, wordEscaped, word, ', '', All
-   g_WordListDB.Query("UPDATE words SET count = count + 1 WHERE word = '" . wordEscaped . "';")
+      timestamp := A_TickCount
+   query := "UPDATE words SET count = count + 1, timestamp = " 
+            . timestamp . " WHERE word = '" . wordEscaped . "';"
+   ; MsgBox Sending query %query%
+   g_WordListDB.Query(query)
    
    Return
 }
@@ -380,6 +396,7 @@ CleanupWordList(LearnedWordsOnly := false)
 ;------------------------------------------------------------------------
 
 ;AlexF. Updates content of "WordlistLearned.txt" file.
+;       I am using MaybeUpdateWordAndCountTextFile() INSTEAD.
 MaybeUpdateWordlist()
 {
    global g_LegacyLearnedWords
