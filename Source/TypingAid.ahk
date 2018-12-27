@@ -328,34 +328,54 @@ RecomputeMatchesTimer:
 
 ;------------------------------------------------------------------------
 
-; Given array of words, sorted alphabetically, and if the table
-; is long enough, truncate each long word, add ellipsis and removed same words.
+; Given table,where each row is {word, timestamp}, sorted by words alphabetically), 
+; creates array of words (either full or truncated with ellipsis). 
+; [If the table is not longer than prefs_ListBoxRows, returns the words without change.]
+;
+; The grouping is done by replacing partially matching sequential words 
+; with one truncated word. Truncation cannot be shorter than truncLength
+;
+; rows - table with columns 'word', 'timestamp'
 ; truncLength - integer, minimal length of truncated words.
-GroupMatches(words, truncLength) {
+; Returns original or grouped/truncated words, latest words first
+GroupMatches(rows, truncLength) {
    global prefs_ListBoxRows
    global alexF_config_Ellipsis
    global wantTraceMatches ; debug, remove
 
+   ; Unpack the rows
+   words := []
+   timestamps := []
+   for each, row in rows {
+      words.Push(row[1])
+      timestamps.Push(row[2])
+   }
+   
    if(words.MaxIndex() <= prefs_ListBoxRows)
       Return words
    
    ;Try to truncate and group some of the words
    truncWords := []
+   truncTimes := []
    prevWord := "" ; previous word, possibly truncated and with ellipsis
    
-   for idx, w in words {
-      if(wantTraceMatches)
-         FileAppend, GroupMatches`t %w% -`t, D:\ahkTest.txt, UTF-8
-
+   for idx, w in words { ; idx is the same as A_Index, right?
       L := StrLen(w)
       prevL := StrLen(prevWord)
+      currTime := timestamps[idx]
       
+      if(wantTraceMatches)
+         FileAppend, Matches`t%w%/%currTime% -`t, D:\ahkTest.txt, UTF-8
+
       ;_1. On the first iteration, just populate previous word 
       if(prevL == 0) {
          truncWords.Push(w)
+         truncTimes.Push(currTime)
          prevWord := w
-      if(wantTraceMatches)
-         FileAppend, Added FIRST: %w%`n, D:\ahkTest.txt, UTF-8
+         
+         if(wantTraceMatches) { ; Added FIRST entry
+            FileAppend, Added1: %w%`n, D:\ahkTest.txt, UTF-8
+         }
          continue
       }
       
@@ -386,23 +406,58 @@ GroupMatches(words, truncLength) {
             FileAppend, Replaced last entry %lastEntry% with %truncW%`t, D:\ahkTest.txt, UTF-8
          }
 
-         truncWords[truncWords.MaxIndex()] := truncW ; replace previous match by possibly shorter match
+         maxIdx := truncWords.MaxIndex()
+         maxTime := Max(truncTimes[maxIdx], currTime)
+         truncWords[maxIdx] := truncW ; replace previous match by possibly shorter match
+         truncTimes[maxIdx] := maxTime
+
          prevWord := truncW
       } else {
-         if(wantTraceMatches)
-            FileAppend, Added entry: %w%`t, D:\ahkTest.txt, UTF-8
+         if(wantTraceMatches) ; Added NEXT entry
+            FileAppend, AddedN: %w%`t, D:\ahkTest.txt, UTF-8
          truncWords.Push(w) ; add the word as is, no ellipsis, since the match is too short
+         truncTimes.Push(currTime)
          prevWord := w
       }
       if(wantTraceMatches) {
          FileAppend, [truncW: %truncW%   Min length: %truncLength%]`n, D:\ahkTest.txt, UTF-8
       }
-
    }
+   
+   ;_5. We are done, if the list of grouped words is short
+   nGroupedMatches := truncWords.MaxIndex()
+   if (nGroupedMatches <= prefs_ListBoxRows) {
+      Return truncWords
+   }
+   
+   ;_6. Sort by timestamp
+   sortedWords := []
+   Loop, %prefs_ListBoxRows% {
+      maxTime = -1
+      
+      Loop, %nGroupedMatches% {
+         time1 := truncTimes[A_Index]
+         if(time1 > maxTime) {
+            maxTime := time1
+            maxIdx := A_Index
+         }
+      }
+      
+      truncW := truncWords[maxIdx]
+      
+      if(wantTraceMatches) {
+         FileAppend, maxIdx: %maxIdx%`tFinal truncW: %truncW% `n, D:\ahkTest.txt, UTF-8
+      }
+
+      sortedWords.Push(truncW)
+      truncTimes[maxIdx] := -1
+   }
+
+
    if(wantTraceMatches) {
       FileAppend, -----------------------------------------------------`n, D:\ahkTest.txt, UTF-8
    }
-   Return truncWords
+   Return sortedWords
 }
 
 ;------------------------------------------------------------------------
@@ -1339,12 +1394,13 @@ RecomputeMatches()
 
    
    ;_0. Maybe purge database of one-time entered words (possibly typos)
+   ;    and update *.csv file
    if(g_LearnedWordInsertionTime) {
          elapsedTime := A_TickCount - g_LearnedWordInsertionTime
          
         if(elapsedTime > alexF_config_PurgeInterval) {
             ; MsgBox % "elapsedTime = " elapsedTime " msec; purge interval = " alexF_config_PurgeInterval
-            g_WordListDB.Query("DELETE FROM words WHERE count = 1;")
+            MaybeUpdateWordAndCountTextFile()
             g_LearnedWordInsertionTime := 0 ; reset "timer"
          }
    }
@@ -1441,19 +1497,24 @@ RecomputeMatches()
 
 
    ;AlexF 1-column table of matched words
-   query := "SELECT word FROM Words" 
+   query := "SELECT word, timestamp FROM Words" 
    query .= WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";"
+   
+   ; MsgBox % "Sending query: " query
+
    Matches := g_WordListDB.Query(query)
    
-   words := []
-   for each, row in Matches.Rows {
-      words.Push(row[1])
-   }
+;   words := []
+;   timestamps := []
+;   for each, row in Matches.Rows {
+;      words.Push(row[1])
+;      timestamps.Push(row[2])
+;   }
    
    if(alexF_config_GroupSimilarWords) {
-      groupedWords := GroupMatches(words, StrLen(g_Word) + alexF_config_MinDeltaLength + alexF_config_DeltaForEllipsis)
+      groupedWords := GroupMatches(Matches.Rows, StrLen(g_Word) + alexF_config_MinDeltaLength + alexF_config_DeltaForEllipsis)
    } else {
-      groupedWords := words
+      groupedWords := words ; AlexF - this is not supported, because it does not ????
    }
 
    g_SingleMatchDb := Object() ; for deleting from the database
