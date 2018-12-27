@@ -1385,7 +1385,7 @@ RecomputeMatches()
    global g_LearnedWordInsertionTime ; AlexF, in milliseconds, 10 ms resolution
    global wantTraceMatches ; debug, remove
    
-   wantTraceMatches := false
+   wantTraceMatches := false ; was true - stam!
    
    if(wantTraceMatches) {
       FileAppend, RecomputeMatches`t TYPED: %g_Word%`n, D:\ahkTest.txt, UTF-8
