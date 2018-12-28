@@ -41,7 +41,7 @@ ReadWordList()
    FormatTime, WordlistModified, %WordlistModified%, yyyy-MM-dd HH:mm:ss
    
    ;_3. I do not have 'Wordlists' table in database, hence LearnedWordsTable is empty.
-   ;    Not sure what this step does. Its result is mere LoadWordlist := Insert'
+   ;    Not sure what this step does. Its result is mere LoadWordlist := "Insert"
    if (!DatabaseRebuilt) {
       LearnedWordsTable := g_WordListDB.Query("SELECT wordlistmodified, wordlistsize FROM Wordlists WHERE wordlist = '" . WordlistFileName . "';")
       
@@ -153,6 +153,15 @@ ReadWordList()
       Progress, Off
    }
 
+   ;_6. Reset timestamps if computer was rebooted.
+   res := g_WordListDB.Query("SELECT MAX(timestamp) FROM words;")
+   row1 := res.Rows[1]
+   latestTime := row1[1]
+
+   if (latestTime > A_TickCount) {
+      g_WordListDB.Query("UPDATE words SET timestamp = 0;")
+   }
+   
    ;mark the wordlist as completed
    g_WordlistDone = 1
    Return
