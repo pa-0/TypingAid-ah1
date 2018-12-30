@@ -545,7 +545,7 @@ GetCapitalization(Word) {
    
    ; AlexF added: check capitalization
    capitalization := "|custom|"
-   if (Word == WordAllCaps) {
+   if (Word == WordAllCaps && StrLen(Word) > 1) {
       capitalization := "|allCaps|"
    } else {
       suffix := SubStr(Word, 2) ; without first char
