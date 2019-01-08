@@ -158,7 +158,7 @@ ReadWordList()
    row1 := res.Rows[1]
    latestTime := row1[1]
 
-   if (latestTime > MilisecToSec(A_TickCount)) {
+   if (latestTime > A_TickCount) {
       g_WordListDB.Query("UPDATE words SET timestamp = 0;")
    }
    
