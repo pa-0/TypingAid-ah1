@@ -216,7 +216,7 @@ AddWordToList(AddWordRaw, LearnedWordCountValue=0)
    global prefs_LearnMode
    global g_WordListDone
    global g_WordListDB
-   global g_LearnedWordInsertionTime ; AlexF, in milliseconds, 10 ms resolution
+   global g_LearnedWordInsertionTime ; AlexF, in seconds, 10 ms resolution
    
    if !(CheckValid(AddWordRaw))
       return
@@ -224,7 +224,7 @@ AddWordToList(AddWordRaw, LearnedWordCountValue=0)
    ; If we adding words from typing, we set timestamp = current time in msec
    ; If we reading them from the backup "WordlistLearned.csv", we reset all the timestamps
    if(LearnedWordCountValue==0) {
-      timestamp := A_TickCount
+      timestamp := MilisecToSec(A_TickCount)
    } else {
       timestamp = 0
    }
@@ -273,7 +273,7 @@ AddWordToList(AddWordRaw, LearnedWordCountValue=0)
       . CountValue . "','" ;if this is read from the wordlist, AlexF expects LearnedWordCountValue > 0
       . timestamp . "');") 
 
-      g_LearnedWordInsertionTime := A_TickCount
+      g_LearnedWordInsertionTime := MilisecToSec(A_TickCount)
    } else
    {
       UpdateWordCount(AddWord) ;Increment the word count if it's already in the list and we aren't forcing it on
@@ -375,7 +375,7 @@ UpdateWordCount(word)
       Return
    
    StringReplace, wordEscaped, word, ', '', All
-      timestamp := A_TickCount
+      timestamp := MilisecToSec(A_TickCount)
    query := "UPDATE words SET count = count + 1, timestamp = " 
             . timestamp . " WHERE word = '" . wordEscaped . "';"
    ; MsgBox Sending query %query%
@@ -535,8 +535,6 @@ MaybeUpdateWordAndCountTextFile()
          FileDelete, %A_ScriptDir%\Temp_WordlistLearned.csv
       }
    }
-   
-   g_WordListDB.Close(),
 }
 
 ; Returns "|allCaps|", "|firstCap|", "|allLow|" or "|custom|"
@@ -600,4 +598,6 @@ AdjustCapitalization(Word, targetCapitalization, headPattern="") {
    Return "Error in script. Word='" . Word . "'; targetCapitalization='" . targetCapitalization . "'."
 }
 
-
+MilisecToSec(time) {
+   return Round(time / 1000)
+}

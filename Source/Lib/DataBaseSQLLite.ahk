@@ -20,6 +20,7 @@ class SQLite
 */
 class DataBaseSQLLite extends DBA.DataBase
 {
+   _wantTraceQueries:= false ; AlexF debug
 	_handleDB := 0
 	
 	__New(handleDB){
@@ -99,19 +100,41 @@ class DataBaseSQLLite extends DBA.DataBase
 	Query(sql){
 		
 		ret := gDBA_null
-		
+		handle := this._handleDB ; AlexF debug
+
 			if (RegExMatch(sql, "i)^\s*SELECT\s")){ ; check if this is a selection query
 				
 				try
 				{
+               if(this._wantTraceQueries) {
+                  FileAppend, %sql%`n, D:\ahkQueryTest.txt, UTF-8
+               }
 					ret := this._GetTableObj(sql)
+               
+               if(this._wantTraceQueries) {
+                  nRows := 0 ; Next time try using ret.Rows.Count() instead of the loop
+                  rows := ret.Rows
+                  for each, row in rows {
+                     nRows := nRows + 1
+                  }
+                  FileAppend, Handle %handle% returned %nRows% rows`n, D:\ahkQueryTest.txt, UTF-8
+               }
+
 				} catch e
 					throw Exception("Select Query failed.`n`n" sql "`n`nChild Exception:`n" e.What "`n" e.Message "`n" e.File "@" e.Line, -1)
 			} else {
 				 
 				try
 				{
+               if(this._wantTraceQueries) {
+                  FileAppend, Non-select query on handle %handle%:`t%sql%`t, D:\ahkQueryTest.txt, UTF-8
+               }
+               
 					ret := SQLite_Exec(this._handleDB, sql)
+               
+               if(this._wantTraceQueries) {
+                  FileAppend, Result = %ret%`n, D:\ahkQueryTest.txt, UTF-8
+               }
 				} catch e
 					throw Exception("Non Selection Query failed.`n`n" sql "`n`nChild Exception:`n" e.What " `n" e.Message, -1)
 			}

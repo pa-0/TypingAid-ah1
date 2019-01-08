@@ -30,3 +30,5 @@ Source/WordlistLearned 2016.04.21.xlsx
 Source/WordlistLearned(before  purge).csv
 Source/WordlistLearned 2016.04.21.xlsx
 *.lnk
+Source/_delete/*
+Source/WordlistLearned - 3461 rows.csv

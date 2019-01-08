@@ -53,7 +53,7 @@ alexF_config_GroupSimilarWords := true ; This supersedes alexF_config_OrderByLen
 alexF_config_MinDeltaLength := 1 ; display words that are at least 1 chars longer than typed
 alexF_config_DeltaForEllipsis := 1  ; at least 1 because ellipsis is one extra click for the user
 alexF_config_Ellipsis := Chr(0x2026)
-alexF_config_PurgeInterval := 3600 * 1000 ; One hour in milliseconds; 1 * 60 * 1000 ;1 min    
+alexF_config_PurgeInterval := 3600 ; One hour in seconds
 
 alexF_config_PreventScrollbar := true
 alexF_config_BackupWordsAndCounts := true
@@ -99,17 +99,6 @@ if (A_PtrSize == 8) {
 }
 g_PID := DllCall("GetCurrentProcessId")
 
-; dllPath := "C:\PROJECTS\GitHub\TypingAid\TAHelper\Win32\Debug\TAHelperU32.dll"
-  dllPath :=           "D:\GitHub\TypingAid\TAHelper\x64\Debug\TAHelperU64.dll"
-g_AlexF_Dll := DllCall("LoadLibrary", "WStr", dllPath) ; , "Ptr")
-; MsgBox % "Loaded " . dllPath . ". Handle: " . g_AlexF_Dll . ". ErrorLevel: " . ErrorLevel
-
-; foo := 3
-; foo1 := DllCall("TAHelperU64.dll\Add5", "Int", foo, "Int")
-; MsgBox % "Calculated " . foo . " Add5 = " . foo1 . ". ErrorLevel: " . ErrorLevel
-
-
-
 AutoTrim, Off 
 
 InitializeListBox()
@@ -123,7 +112,7 @@ DisableKeyboardHotKeys()
 ;Change the Running performance speed (Priority changed to High in GetIncludedActiveWindow)
 SetBatchLines, -1
 
-;Read in the WordList
+;Read in the WordList, Learned words list; open the database
 ReadWordList()
 
 g_WinChangedCallback := RegisterCallback("WinChanged")
@@ -364,8 +353,9 @@ GroupMatches(rows, truncLength) {
       prevL := StrLen(prevWord)
       currTime := timestamps[idx]
       
-      if(wantTraceMatches)
+      if(wantTraceMatches) {
          FileAppend, Matches`t%w%/%currTime% -`t, D:\ahkTest.txt, UTF-8
+      }
 
       ;_1. On the first iteration, just populate previous word 
       if(prevL == 0) {
@@ -1337,6 +1327,7 @@ ExitScript:
 ExitApp
 Return
    
+; BEGIN saving script (see OnExit)
 SaveScript:
 ; Close the ListBox if it's open
 CloseListBox()
@@ -1356,9 +1347,12 @@ MaybeWriteHelperWindowPos()
 ; Update the Learned Words
 if(alexF_config_BackupWordsAndCounts) {
    MaybeUpdateWordAndCountTextFile()
+   g_WordListDB.Close()
 } else {
    MaybeUpdateWordlist()
 }
+; END saving script
+
 
 ; Takes the given word (g_Word), recompiles the list of matches and redisplays the wordlist.
 ; AlexF, note: RecomputeMatches() is too long for Function List parser. 
@@ -1385,7 +1379,7 @@ RecomputeMatches()
    global g_LearnedWordInsertionTime ; AlexF, in milliseconds, 10 ms resolution
    global wantTraceMatches ; debug, remove
    
-   wantTraceMatches := false ; was true - stam!
+   wantTraceMatches := false
    
    if(wantTraceMatches) {
       FileAppend, RecomputeMatches`t TYPED: %g_Word%`n, D:\ahkTest.txt, UTF-8
@@ -1396,13 +1390,13 @@ RecomputeMatches()
    ;_0. Maybe purge database of one-time entered words (possibly typos)
    ;    and update *.csv file
    if(g_LearnedWordInsertionTime) {
-         elapsedTime := A_TickCount - g_LearnedWordInsertionTime
-         
-        if(elapsedTime > alexF_config_PurgeInterval) {
-            ; MsgBox % "elapsedTime = " elapsedTime " msec; purge interval = " alexF_config_PurgeInterval
-            MaybeUpdateWordAndCountTextFile()
-            g_LearnedWordInsertionTime := 0 ; reset "timer"
-         }
+      elapsedTime := MilisecToSec(A_TickCount) - g_LearnedWordInsertionTime
+      
+     if(elapsedTime > alexF_config_PurgeInterval) { 
+         ; MsgBox % "elapsedTime = " elapsedTime " sec; purge interval = " alexF_config_PurgeInterval
+         MaybeUpdateWordAndCountTextFile()
+         g_LearnedWordInsertionTime := 0 ; reset "timer"
+      }
    }
    
    SavePriorMatchPosition()
@@ -1504,17 +1498,10 @@ RecomputeMatches()
 
    Matches := g_WordListDB.Query(query)
    
-;   words := []
-;   timestamps := []
-;   for each, row in Matches.Rows {
-;      words.Push(row[1])
-;      timestamps.Push(row[2])
-;   }
-   
    if(alexF_config_GroupSimilarWords) {
       groupedWords := GroupMatches(Matches.Rows, StrLen(g_Word) + alexF_config_MinDeltaLength + alexF_config_DeltaForEllipsis)
    } else {
-      groupedWords := words ; AlexF - this is not supported, because it does not ????
+      groupedWords := [] ; AlexF - this is not supported, because it does not ????
    }
 
    g_SingleMatchDb := Object() ; for deleting from the database

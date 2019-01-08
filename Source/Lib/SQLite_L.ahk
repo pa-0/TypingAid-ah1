@@ -417,7 +417,8 @@ SQLite_Exec(DB, SQL) {
                   ErrorLevel := RC
                } catch e
                {
-                   ;throw Exception("sqlite3_free failed.`n`nErr:" Err "`n`nChild Exception:`n" e.What " `n" e.Message, -1)
+                   ; AlexF uncommented line below
+                   throw Exception("sqlite3_free failed.`n`nErr:" Err "`n`nChild Exception:`n" e.What " `n" e.Message, -1)
                    ; just igonre for now
                }
 
