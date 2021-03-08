@@ -29,7 +29,7 @@ class DataBaseSQLLite extends DBA.DataBase
 		{
 			throw Exception("Can not create a DataBaseSQLLite instance, because the connection handle is not valid!")
 		}
-		gDBA_ArchLogger.Log("New DataBaseSQLLite: Handle @" handleDB)
+		; AlexF removed gDBA_ArchLogger.Log("New DataBaseSQLLite: Handle @" handleDB)
 	}
 	
 	
