@@ -703,8 +703,18 @@ HCaretX()
    } 
    if ( CheckIfCaretNotDetectable() )
    { 
-      MouseGetPos, MouseX
-      return MouseX
+      chromeWindow := WinExist("ahk_class Chrome_WidgetWin_1")
+      if (chromeWindow) {
+         Acc_Caret := Acc_ObjectFromWindow(chromeWindow, OBJID_CARET := 0xFFFFFFF8)
+         Caret_Location := Acc_Location(Acc_Caret)
+         if Caret_Location.x {
+            return Caret_Location.x
+         }
+      }
+      else {
+         MouseGetPos, MouseX
+         return MouseX
+      }
    }
    ; non-DPI Aware
    if (g_DpiAware == g_Process_DPI_Unaware) {
@@ -731,14 +741,50 @@ HCaretY()
    } 
    if ( CheckIfCaretNotDetectable() )
    { 
-      MouseGetPos, , MouseY
-      return MouseY + (20*g_DpiScalingFactor)
+      chromeWindow := WinExist("ahk_class Chrome_WidgetWin_1")
+      if (chromeWindow) {
+         Acc_Caret := Acc_ObjectFromWindow(chromeWindow, OBJID_CARET := 0xFFFFFFF8)
+         Caret_Location := Acc_Location(Acc_Caret)
+         if Caret_Location.y {
+            return Caret_Location.y
+         }
+      }
+      else {
+         MouseGetPos, , MouseY
+         return MouseY + (20*g_DpiScalingFactor)
+      }
    }
    if (g_DpiAware == g_Process_DPI_Unaware) {
       return (A_CaretY * g_DpiScalingFactor)
    }
    
    return A_CaretY 
+}
+
+;------------------------------------------------------------------------
+
+; functions to fix issue with suggestions list not following caret in chrome based apps
+; Based on https://www.autohotkey.com/boards/viewtopic.php?t=67923
+Acc_ObjectFromWindow(hWnd, idObject = -4)
+{
+    Acc_Init()
+    If  DllCall("oleacc\AccessibleObjectFromWindow", "Ptr", hWnd, "UInt", idObject&=0xFFFFFFFF, "Ptr", -VarSetCapacity(IID,16)+NumPut(idObject==0xFFFFFFF0?0x46000000000000C0:0x719B3800AA000C81,NumPut(idObject==0xFFFFFFF0?0x0000000000020400:0x11CF3C3D618736E0,IID,"Int64"),"Int64"), "Ptr*", pacc)=0
+    Return  ComObjEnwrap(9,pacc,1)
+}
+
+Acc_Init()
+{
+    Static  h
+    If Not  h
+        h:=DllCall("LoadLibrary","Str","oleacc","Ptr")
+}
+
+Acc_Location(Acc, ChildId=0, byref Position="") {
+    try Acc.accLocation(ComObj(0x4003,&x:=0), ComObj(0x4003,&y:=0), ComObj(0x4003,&w:=0), ComObj(0x4003,&h:=0), ChildId)
+    catch
+        return
+    Position := "x" NumGet(x,0,"int") " y" NumGet(y,0,"int") " w" NumGet(w,0,"int") " h" NumGet(h,0,"int")
+    return  {x:NumGet(x,0,"int"), y:NumGet(y,0,"int"), w:NumGet(w,0,"int"), h:NumGet(h,0,"int")}
 }
 
 ;------------------------------------------------------------------------

@@ -1,3 +1,7 @@
+*3.0.0 2023/10/31
+** Fixed issue with suggestions list not following caret in chrome based apps
+** Major version bump due to AlexF improvements over the years
+
 *2.22.0 6/26/2015
 ** Added the ability to exact match on Window Titles (enquote, or tick the checkbox)
 ** Added Word Replacements. In wordlist.txt, use the form <word>|r|<replacement word>. To define more than one replacement per word, simply add the word again on a different line. If Case Correction is off, the case of the first letter will be changed to match the word being replaced
