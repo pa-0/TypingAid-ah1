@@ -255,14 +255,21 @@ ProcessKey(InputChar,EndKey)
       ;Don't do anything if we aren't in the original window and aren't starting a new word
       IfNotEqual, g_LastInput_Id, %g_Active_Id%
          Return
-      
-      StringLen, len, g_Word
-      IfEqual, len, 1   
+      ; Check if Ctrl+Backspace was pressed (On Windows this shortcut removes word backwards)
+      if GetKeyState("Ctrl")
       {
-         ClearAllVars(true)
-      } else IfNotEqual, len, 0
+         ClearAllVars(true) ; Clear word that is currently in memory to avoid situations where concatenated string of two words is saved to database as one word.
+      }
+      else
       {
-         StringTrimRight, g_Word, g_Word, 1
+         StringLen, len, g_Word
+         IfEqual, len, 1   
+         {
+            ClearAllVars(true)
+         } else IfNotEqual, len, 0
+         {
+            StringTrimRight, g_Word, g_Word, 1
+         }
       }
    } else if ( ( EndKey == "Max" ) && !(InStr(g_TerminatingCharactersParsed, InputChar)) )
    {

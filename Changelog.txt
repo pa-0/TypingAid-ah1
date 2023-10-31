@@ -1,3 +1,7 @@
+*3.0.1 2023/10/31
+** Fixed issue with `Ctrl+Backspace` not clearing word that is currently in memory.
+    ** That was causing situations where concatenated string of two words was saved to database as one word.
+
 *3.0.0 2023/10/31
 ** Fixed issue with suggestions list not following caret in chrome based apps
 ** Major version bump due to AlexF improvements over the years
