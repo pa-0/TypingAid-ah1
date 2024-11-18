@@ -97,9 +97,15 @@ RebuildDatabase()
 	
 	CreateWordIndex()
 	
+	CreateWordReplacementIndex()
+	
 	CreateLastStateTable()
 	
 	CreateWordlistsTable()
+	
+	CreateWordRelationTable()
+	
+	CreateWordRelationView()
 	
 	SetDbVersion()
 	g_WordListDB.EndTransaction()
@@ -249,7 +255,7 @@ CreateWordsTable(WordsTableName:="Words")
 {
 	global g_WordListDB
 	
-	IF not g_WordListDB.Query("CREATE TABLE " . WordsTableName . " (wordindexed TEXT NOT NULL, word TEXT NOT NULL, count INTEGER, worddescription TEXT, wordreplacement TEXT NOT NULL, PRIMARY KEY (word, wordreplacement) );")
+	IF not g_WordListDB.Query("CREATE TABLE " . WordsTableName . " (ID INTEGER PRIMARY KEY, wordindexed TEXT NOT NULL, word TEXT NOT NULL, count INTEGER, worddescription TEXT, wordreplacement TEXT NOT NULL, lastused INTEGER DEFAULT (0), UNIQUE (word, wordreplacement));")
 	{
 		ErrMsg := g_WordListDB.ErrMsg()
 		ErrCode := g_WordListDB.ErrCode()
@@ -271,6 +277,19 @@ CreateWordIndex()
 	}
 }
 
+CreateWordReplacementIndex()
+{
+	global g_WordListDB
+
+	IF not g_WordListDB.Query("CREATE INDEX WordReplacementIndexed ON Words (word, wordreplacement);")
+	{
+		ErrMsg := g_WordListDB.ErrMsg()
+		ErrCode := g_WordListDB.ErrCode()
+		msgbox Cannot Create WordReplacementIndexed Index - fatal error: %ErrCode% - %ErrMsg%
+		ExitApp
+	}
+}
+
 CreateWordlistsTable()
 {
 	global g_WordListDB
@@ -280,6 +299,32 @@ CreateWordlistsTable()
 		ErrMsg := g_WordListDB.ErrMsg()
 		ErrCode := g_WordListDB.ErrCode()
 		msgbox Cannot Create Wordlists Table - fatal error: %ErrCode% - %ErrMsg%
+		ExitApp
+	}
+}
+
+CreateWordRelationTable()
+{
+	global g_WordListDB
+	
+	IF not g_WordListDB.Query("CREATE TABLE WordRelations ( word_minus1 INTEGER NOT NULL REFERENCES Words (ID) ON DELETE CASCADE, word INTEGER NOT NULL REFERENCES Words (ID) ON DELETE CASCADE, count INTEGER, lastused INTEGER DEFAULT (0), PRIMARY KEY ( word_minus1, word ) ); ")
+	{
+		ErrMsg := g_WordListDB.ErrMsg()
+		ErrCode := g_WordListDB.ErrCode()
+		msgbox Cannot Create WordRelations Table - fatal error: %ErrCode% - %ErrMsg%
+		ExitApp
+	}
+}
+
+CreateWordRelationView()
+{
+	global g_WordListDB
+	
+	IF not g_WordListDB.Query("CREATE VIEW VW_WordRelations AS SELECT WordRelations.word_minus1 AS word_minus1_ID, Words_0.word AS word_minus1, WordRelations.word AS word_ID, Words.word AS word, WordRelations.count, WordRelations.lastused FROM words AS Words_0 INNER JOIN ( WordRelations INNER JOIN Words ON WordRelations.word = Words.ID ) ON Words_0.ID = WordRelations.word_minus1; ")
+	{
+		ErrMsg := g_WordListDB.ErrMsg()
+		ErrCode := g_WordListDB.ErrCode()
+		msgbox Cannot Create WordRelations View - fatal error: %ErrCode% - %ErrMsg%
 		ExitApp
 	}
 }

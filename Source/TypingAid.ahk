@@ -1,3 +1,4 @@
+;  Based on version: TypingAid-master (2.22 + commits including Oct 27, 2015 from Github)
 ;  TypingAid
 ;  http://www.autohotkey.com/board/topic/49517-ahk-11typingaid-v2200-word-autocompletion-utility/
 ;
@@ -161,7 +162,7 @@ ProcessKey(InputChar,EndKey)
    global prefs_EndWordCharacters
    global prefs_ForceNewWordCharacters
    global prefs_Length
-   
+
    IfEqual, g_IgnoreSend, 1
    {
       g_IgnoreSend = 
@@ -310,6 +311,9 @@ RecomputeMatches()
    global prefs_NoBackSpace
    global prefs_ShowLearnedFirst
    global prefs_SuppressMatchingWord
+
+   global g_Word_Minus1
+   global g_Word_Minus2
    
    SavePriorMatchPosition()
 
@@ -370,7 +374,7 @@ RecomputeMatches()
          SuppressMatchingWordQuery := " AND word <> '" . WordExactEscaped . "'"
       } else {
                SuppressMatchingWordQuery := " AND wordindexed <> '" . WordMatchEscaped . "'"
-            }
+      }
    }
    
    WhereQuery := " WHERE wordindexed GLOB '" . WordMatchEscaped . "*' " . SuppressMatchingWordQuery . WordAccentQuery
@@ -388,17 +392,40 @@ RecomputeMatches()
    }
       
    WordLen := StrLen(g_Word)
-   OrderByQuery := " ORDER BY CASE WHEN count IS NULL then "
+   WordCaseOrderStatement := "(CASE WHEN count IS NULL then "
    IfEqual, prefs_ShowLearnedFirst, On
    {
-      OrderByQuery .= "ROWID + 1 else 0"
+      WordCaseOrderStatement .= "ROWID + 1 else 0"
    } else {
-      OrderByQuery .= "ROWID else 'z'"
+      WordCaseOrderStatement .= "ROWID else 'z'"
    }
+   WordCaseOrderStatement .= "END) as ""Order1"""
    
-   OrderByQuery .= " end, CASE WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - " . WordLen . ")))) end DESC, Word"
-      
-   Matches := g_WordListDB.Query("SELECT word, worddescription, wordreplacement FROM Words" . WhereQuery . OrderByQuery . " LIMIT " . LimitTotalMatches . ";")
+   ;Add logic to factor 'lastused' date into the order of the matching words
+   ;86400 = number of seconds in a day.
+   ; - the logic here is to re-rank the lastused words from TODAY higher and subtract number of seconds since the day started.  This way
+   ;   the most recently used words will stay higher on the list.
+   WordCaseOrderStatement .= ", (CASE WHEN count IS NOT NULL AND DATE(lastused) = DATE('now') THEN (select max(count) from Words)+86400 -(strftime('%s',time('now'))-strftime('%s',time(lastused))) WHEN count IS NOT NULL then ( (count - " . Normalize . ") * ( 1 - ( '0.75' / (LENGTH(word) - " . WordLen . ")))) END ) as ""Order2"""
+   
+   WordRelationOrderStatement := "'z' as ""Order1"", (CASE WHEN DATE(lastused) = DATE('now') THEN (count*200) + (strftime('%s', TIME('now')) - strftime('%s', TIME(lastused))) ELSE (count*200) END) as ""Order2"""
+
+   
+   MainWordQuery := "SELECT word, worddescription, wordreplacement," . WordCaseOrderStatement . " FROM Words" . WhereQuery . " LIMIT 180"
+   
+   if g_Word_Minus1
+   {
+      ;OutputDebug, Two State Query
+      WordRelationQuery := "SELECT word, NULL as ""worddescription"", '' as ""wordreplacement"", " . WordRelationOrderStatement . " FROM VW_WordRelations WHERE word_minus1='" . g_Word_Minus1 . "' " . WordAccentQuery . " LIMIT 50"
+      MergedQuery := "select word, WORDDESCRIPTION, WORDREPLACEMENT, SUM(ORDER2) AS ORDER2 from (select * from (" . WordRelationQuery . ") UNION select * from (" . MainWordQuery . ")) GROUP BY word, wordreplacement, Order1 ORDER BY Order1, Order2 DESC"
+   } else {
+      ;OutputDebug, Single State Query
+      MergedQuery := "select word, WORDDESCRIPTION, WORDREPLACEMENT, SUM(ORDER2) AS ORDER2 from (" . MainWordQuery . ") GROUP BY word, wordreplacement, Order1 ORDER BY Order1, Order2 DESC"
+   }
+
+   ;OutputDebug, % WordRelationQuery
+   ;OutputDebug, % MergedQuery
+   
+   Matches := g_WordListDB.Query(MergedQuery . ";")
    
    g_SingleMatch := Object()
    g_SingleMatchDescription := Object()
@@ -988,6 +1015,7 @@ AddSelectedWordToList()
    ClipWait, 0
    IfNotEqual, Clipboard, 
    {
+      showTrayTip("Forcing adding word '" . Clipboard . "'.", 1)
       AddWordToList(Clipboard,1,"ForceLearn")
    }
    Clipboard = %ClipboardSave%
@@ -1099,6 +1127,7 @@ BuildTrayMenu()
    Menu, Tray, NoStandard
    Menu, Tray, add, Settings, Configuration
    Menu, Tray, add, Pause, PauseResumeScript
+   Menu, Tray, add, Bulk Learn, BulkLearnFromClipboardMenu
    IF (A_IsCompiled)
    {
       Menu, Tray, add, Exit, ExitScript
@@ -1134,6 +1163,115 @@ ClearAllVars(ClearWord)
    g_MatchPos=
    g_MatchStart= 
    g_OriginalMatchStart=
+   Return
+}
+
+;------------------------------------------------------------------------
+
+; This is to blank all vars related to hierarchy matches
+ClearWordHierarchy()
+{
+   global
+   g_Word_Minus1 = 
+   g_Word_Minus2 =
+   ;OutputDebug, Clearing word hierarchy
+   Return
+}
+
+;------------------------------------------------------------------------
+
+; Update word hierachy (parent-child relationship)
+UpdateWordHierarchy(AddWord)
+{
+   global prefs_DoNotLearnStrings
+   global prefs_ForceNewWordCharacters
+   global prefs_LearnCount
+   global prefs_LearnLength
+   global prefs_LearnMode
+   ;global g_WordListDone
+   global g_WordListDB
+   
+   global g_Word_Minus1
+   global g_Word_Minus2
+
+   TransformWord(AddWord, AddWordReplacement, AddWordDescription, AddWordTransformed, AddWordIndexTransformed, AddWordReplacementTransformed, AddWordDescriptionTransformed)
+   
+   OutputDebug, --------[UpdateWordHierarchy]------------------------
+   OutputDebug, % "     g_Word_Minus2: [" . g_Word_Minus2 . "]"
+   OutputDebug, % "     g_Word_Minus1: [" . g_Word_Minus1 . "]"
+   OutputDebug, % "AddWordTransformed: [" . AddWordTransformed . "]"	  
+
+   if g_Word_Minus1
+   {
+      OutputDebug, Hierarchy evaluation...
+
+      ;Check if the word exists in our word hierachy table.
+      AddWordInList := g_WordListDB.Query("SELECT * FROM VW_WordRelations WHERE word = '" . AddWordTransformed . "' and word_minus1 = '" . g_Word_Minus1 . "';")
+
+      IF !( AddWordInList.Count() > 0 )
+      {
+         OutputDebug, [Hierarchy evaluation] word is not in the hierachy list...
+         ;if the word is not in the hierachy list...
+         IfNotEqual, ForceCountNewOnly, 1
+         {
+            if (StrLen(AddWord) < prefs_LearnLength) ; don't add the word if it's not longer than the minimum length for learning if we aren't force learning it
+            Return
+
+            if AddWord contains %prefs_ForceNewWordCharacters%
+            Return
+
+            if AddWord contains %prefs_DoNotLearnStrings%
+            Return
+
+            CountValue = 1
+
+         } else
+         {
+            CountValue := prefs_LearnCount ;set the count to LearnCount so it gets written to the file
+         }
+
+         ; must update wordreplacement since SQLLite3 considers nulls unique
+         ;OutputDebug, % "[Hierarchy evaluation] INSERT INTO WordRelations (word_minus1, word, count, lastused) VALUES ((select ID from words where word = '" . g_Word_Minus1 . "'),(select ID from words where word = '" . AddWordTransformed . "'),'" . CountValue . "', (select datetime(strftime('%s','now'), 'unixepoch')));"
+         g_WordListDB.Query("INSERT INTO WordRelations (word_minus1, word, count, lastused) VALUES ((select ID from words where word = '" . g_Word_Minus1 . "'),(select ID from words where word = '" . AddWordTransformed . "'),'" . CountValue . "', (select datetime(strftime('%s','now'), 'unixepoch')));")
+         ;OutputDebug, [Hierarchy evaluation] Added to add new word relation:
+
+      } else IfEqual, prefs_LearnMode, On
+      {
+         ;OutputDebug, [Hierarchy evaluation] word exists in the word hierarchy and LearnMode is turned 'On'...
+         ;If the word exists in the word hierarchy and we're LearnMode is turned 'On'...
+
+         For each, row in AddWordInList.Rows
+         {
+            CountValue := row[3]
+            break
+         }
+
+         IfEqual, ForceCountNewOnly, 1                     
+         {
+
+            IF ( CountValue < prefs_LearnCount )
+            {
+               ;OutputDebug, % "[Hierarchy evaluation] UPDATE WordRelations SET count = ('" . prefs_LearnCount . "'), lastused = (select datetime(strftime('%s','now'), 'unixepoch')) WHERE word = (select ID from words where word = '" . AddWordTransformed . "') and word_minus1 = (select ID from words where word = '" . g_Word_Minus1 . "'));"
+               g_WordListDB.QUERY("UPDATE WordRelations SET count = ('" . prefs_LearnCount . "'), lastused = (select datetime(strftime('%s','now'), 'unixepoch')) WHERE word = (select ID from words where word = '" . AddWordTransformed . "') and word_minus1 = (select ID from words where word = '" . g_Word_Minus1 . "'));")
+            }
+         }
+         else
+         {
+            ;OutputDebug, Attempting to update count of existing word pair
+            UpdateWordHierarchyCount(AddWord) ;Increment the word count if it's already in the list and we aren't forcing it on
+            ;OutputDebug, Updated count of existing word pair
+         }
+      }
+   }
+  
+  
+;-- END
+   g_Word_Minus2 := g_Word_Minus1
+   g_Word_Minus1 := AddWordTransformed
+
+   
+   ;OutputDebug, --------[END UpdateWordHierarchy]------------------------
+   
    Return
 }
 
@@ -1258,6 +1396,18 @@ if (g_PauseState == "Paused")
 }
 Return
 
+BulkLearnFromClipboardMenu:
+MsgBox, 4, Bulk-learn words from clipboard contents, Would you like to continue? (press Yes or No)
+IfMsgBox No
+{
+   Return
+}
+SuspendOn()
+BulkLearnFromClipboard(clipboard)
+SuspendOff()
+Return
+
+
 ExitScript:
 ExitApp
 Return
@@ -1293,3 +1443,16 @@ ExitApp
 #Include %A_ScriptDir%\Includes\Wordlist.ahk
 #Include <DBA>
 #Include <_Struct>
+
+RemoveTrayTip:
+	SetTimer, RemoveTrayTip, Off
+	TrayTip
+return
+
+showTrayTip(byref x, time) { 
+	time *= 1000 
+	TrayTip, , %x%
+	SetTimer, RemoveTrayTip, %time% 
+	return
+}
+return
