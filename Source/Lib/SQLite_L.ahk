@@ -108,8 +108,9 @@ SQLite_Startup() {
          throw Exception("Can't load " . sqliteDllPath . "!", -1)
       
       ver := SQLite_LibVersion()
-      
-      if(SubStr(RegExReplace(ver, "\."), 1, 2) < MinVersion)
+      versionArray := StrSplit(ver, ".")
+      minorVersion := versionArray[2]
+      if(minorVersion < MinVersion)
          throw Exception("SQLite ERROR: Version " . ver .  " of SQLite3.dll is not supported!", -1)
       
       _SQLite_ModuleHandle(DLL)
